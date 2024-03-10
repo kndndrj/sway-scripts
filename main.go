@@ -8,26 +8,9 @@ import (
 	"strconv"
 
 	"github.com/joshuarubin/go-sway"
+
+	"github.com/kndndrj/sway-reflex/internal/output"
 )
-
-// outputDimensions represents a physical outputDimensions.
-type outputDimensions struct {
-	PhysicalWidth  int // [mm]
-	PhysicalHeight int // [mm]
-	Width          int // pixels
-	Height         int // pixels
-}
-
-// getOutputDimensions returns output's physical and pixel dimensions.
-func getOutputDimensions(ctx context.Context, output string) (*outputDimensions, error) {
-	// TODO
-	return &outputDimensions{
-		PhysicalWidth:  620,
-		PhysicalHeight: 349,
-		Width:          3840,
-		Height:         2160,
-	}, nil
-}
 
 type direction int
 
@@ -67,18 +50,18 @@ func (s *screen) isFilled(cwidth, cheight int) bool {
 	return true
 }
 
-func newScreen(od *outputDimensions, pr *prefferences) *screen {
-	prefferedWindowWidth := (pr.PhysicalWindowWidth * od.Width) / od.PhysicalWidth
-	prefferedWindowHeight := (pr.PhysicalWindowHeight * od.Height) / od.PhysicalHeight
+func newScreen(o *output.Output, pr *prefferences) *screen {
+	prefferedWindowWidth := (pr.PhysicalWindowWidth * o.Width) / o.PhysicalWidth
+	prefferedWindowHeight := (pr.PhysicalWindowHeight * o.Height) / o.PhysicalHeight
 
 	dir := directionHorizontal
-	if od.Height-prefferedWindowHeight > od.Width-prefferedWindowWidth {
+	if o.Height-prefferedWindowHeight > o.Width-prefferedWindowWidth {
 		dir = directionVertical
 	}
 
 	return &screen{
-		Width:                 od.Width,
-		Height:                od.Height,
+		Width:                 o.Width,
+		Height:                o.Height,
 		PrefferedWindowWidth:  prefferedWindowWidth,
 		PrefferedWindowHeight: prefferedWindowHeight,
 		Direction:             dir,
@@ -100,19 +83,29 @@ type eventHandler struct {
 }
 
 // getScreen retrieves or initializes and then returns a screen.
-func (eh *eventHandler) getScreen(ctx context.Context, output string) (*screen, error) {
-	scr, ok := eh.screens[output]
+func (eh *eventHandler) getScreen(ctx context.Context, outputName string) (*screen, error) {
+	scr, ok := eh.screens[outputName]
 	if ok {
 		return scr, nil
 	}
 
-	dim, err := getOutputDimensions(ctx, output)
+	// get all outputs from wayland
+	outputs, err := output.Get()
 	if err != nil {
-		return nil, fmt.Errorf("getOutputDimensions: %w", err)
+		return nil, fmt.Errorf("output.Get: %w", err)
 	}
 
-	scr = newScreen(dim, eh.prefferences)
-	eh.screens[output] = scr
+	// add new and update existing screens
+	for _, o := range outputs {
+		scr = newScreen(o, eh.prefferences)
+		eh.screens[o.Name] = scr
+	}
+
+	scr, ok = eh.screens[outputName]
+	if !ok {
+		return nil, fmt.Errorf("screen with name: %q not found", outputName)
+	}
+
 	return scr, nil
 }
 
@@ -156,22 +149,34 @@ func (eh *eventHandler) getWorkspaceNode(ctx context.Context, workspace *sway.Wo
 	return node, nil
 }
 
+func filterConNodes(in []*sway.Node) []*sway.Node {
+	var out []*sway.Node
+	for _, n := range in {
+		if n.Type == sway.NodeCon {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // getWorkspaceTopLevelContainers returns top level containers in the provided workspace.
 func (eh *eventHandler) getWorkspaceTopLevelContainers(ctx context.Context, workspace *sway.Workspace) ([]*sway.Node, error) {
 	var get func(node *sway.Node) []*sway.Node
 	get = func(node *sway.Node) []*sway.Node {
-		if len(node.Nodes) > 1 {
-			return node.Nodes
+		nodes := filterConNodes(node.Nodes)
+
+		if len(nodes) > 1 {
+			return nodes
 		}
 
-		if len(node.Nodes) == 1 {
-			children := get(node.Nodes[0])
+		if len(nodes) == 1 {
+			children := get(nodes[0])
 			if len(children) > 0 {
 				return children
 			}
 		}
 
-		return node.Nodes
+		return nodes
 	}
 
 	node, err := eh.getWorkspaceNode(ctx, workspace)
@@ -382,6 +387,10 @@ func nodeExistsInSet(set []*sway.Node, n *sway.Node) bool {
 
 // Window handler gets called on window events.
 func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
+	if e.Container.Type == sway.NodeFloatingCon {
+		return
+	}
+
 	workspace, err := eh.findFocusedWorkspace(ctx)
 	if err != nil {
 		log.Printf("eh.findFocusedWorkspace: %s", err)
@@ -425,14 +434,14 @@ func main() {
 
 	client, err := sway.New(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("sway.New: %s", err)
 	}
 
 	eh := &eventHandler{
 		client: client,
 		prefferences: &prefferences{
-			PhysicalWindowWidth:  300,
-			PhysicalWindowHeight: 200,
+			PhysicalWindowWidth:  200,
+			PhysicalWindowHeight: 100,
 		},
 		screens: make(map[string]*screen),
 	}
@@ -440,6 +449,6 @@ func main() {
 	// start the event loop
 	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeMode)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("sway.Subscribe: %s", err)
 	}
 }
