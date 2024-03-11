@@ -10,18 +10,12 @@ import (
 	"github.com/kndndrj/sway-reflex/internal/core"
 )
 
-type prefferences struct {
-	// Preffered physical dimensions of windows.
-	PhysicalWindowWidth  int // all physical dimensions are in [mm]
-	PhysicalWindowHeight int
-}
-
 type eventHandler struct {
 	sway.EventHandler
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
 
-	prefferences *prefferences
+	cfg *config
 }
 
 // getScreen retrieves or initializes and then returns a screen.
@@ -31,7 +25,7 @@ func (eh *eventHandler) getScreen(ctx context.Context, outputName string) (*scre
 		return nil, fmt.Errorf("eh.outputCache.Get: %w", err)
 	}
 
-	return newScreen(out, eh.prefferences.PhysicalWindowWidth, eh.prefferences.PhysicalWindowHeight), nil
+	return newScreen(out, eh.cfg), nil
 }
 
 func (eh *eventHandler) autogap(ctx context.Context, workspace *sway.Workspace) error {
@@ -59,13 +53,13 @@ func (eh *eventHandler) autogap(ctx context.Context, workspace *sway.Workspace) 
 	// when there is only top level container, we can set the general direction that holds
 	// true for the screen.
 	if len(topLevelContainers) == 1 {
-		err := eh.ninja.NodeApplySplitDirection(ctx, topLevelContainers[0], scr.direction)
+		err := eh.ninja.NodeApplySplitDirection(ctx, topLevelContainers[0], scr.Direction())
 		if err != nil {
 			return fmt.Errorf("eh.NodeApplySplitDirection: %w", err)
 		}
 	}
 
-	if scr.isFilled(cwidth, cheight) {
+	if scr.IsFilled(cwidth, cheight) {
 		for _, c := range topLevelContainers {
 			dir := eh.ninja.NodeDetermineSplitDirection(c)
 			err := eh.ninja.NodeApplySplitDirection(ctx, c, dir)
@@ -142,11 +136,13 @@ func main() {
 		log.Fatalf("sway.New: %s", err)
 	}
 
+	cfg, err := parseConfig()
+	if err != nil {
+		log.Fatalf("parseConfig: %s", err)
+	}
+
 	eh := &eventHandler{
-		prefferences: &prefferences{
-			PhysicalWindowWidth:  500,
-			PhysicalWindowHeight: 300,
-		},
+		cfg:         cfg,
 		outputCache: core.NewOutputCache(client),
 		ninja:       core.NewNodeNinja(client),
 	}

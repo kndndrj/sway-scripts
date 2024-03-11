@@ -12,12 +12,15 @@ type screen struct {
 	prefferedWindowWidth  int
 	prefferedWindowHeight int
 
+	defaultGapHorizontal int
+	defaultGapVertical   int
+
 	// which way is the top level container being split?
 	direction core.Direction
 }
 
-// isFilled returns true if based on provided container dimensions screen is fully filled.
-func (s *screen) isFilled(cwidth, cheight int) bool {
+// IsFilled returns true if based on provided container dimensions screen is fully filled.
+func (s *screen) IsFilled(cwidth, cheight int) bool {
 	if cwidth < s.width {
 		return false
 	}
@@ -27,29 +30,37 @@ func (s *screen) isFilled(cwidth, cheight int) bool {
 	return true
 }
 
+// IsFilled returns true if based on provided container dimensions screen is fully filled.
+func (s *screen) Direction() core.Direction {
+	return s.direction
+}
+
 // newScreen retrieves or initializes and then returns a screen.
 // if no preffered height is given, width is used for both dimensions.
-func newScreen(out *core.Output, prefferedWindowWidthMM int, prefferedWindowHeightMM ...int) *screen {
-	physWidth := prefferedWindowWidthMM
-	physHeight := prefferedWindowWidthMM
-	if len(prefferedWindowHeightMM) > 0 {
-		physHeight = prefferedWindowHeightMM[0]
-	}
+func newScreen(out *core.Output, cfg *config) *screen {
+	// calculate pixel dimensions from actual size and prefferences
+	prefferedWindowWidth := (cfg.PhysicalWindowWidth * out.Width) / out.PhysicalWidth
+	prefferedWindowHeight := (cfg.PhysicalWindowHeight * out.Height) / out.PhysicalHeight
 
-	prefferedWindowWidth := (physWidth * out.Width) / out.PhysicalWidth
-	prefferedWindowHeight := (physHeight * out.Height) / out.PhysicalHeight
+	width := out.Width - (cfg.DefaultGapHorizontal * 2)
+	height := out.Height - (cfg.DefaultGapVertical * 2)
 
 	dir := core.DirectionHorizontal
-	if out.Height-prefferedWindowHeight > out.Width-prefferedWindowWidth {
+	if height-prefferedWindowHeight > width-prefferedWindowWidth {
 		dir = core.DirectionVertical
 	}
 
 	return &screen{
-		width:                 out.Width,
-		height:                out.Height,
+		width:  width,
+		height: height,
+
 		prefferedWindowWidth:  prefferedWindowWidth,
 		prefferedWindowHeight: prefferedWindowHeight,
-		direction:             dir,
+
+		defaultGapHorizontal: cfg.DefaultGapHorizontal,
+		defaultGapVertical:   cfg.DefaultGapVertical,
+
+		direction: dir,
 	}
 }
 
@@ -126,5 +137,8 @@ func (s *screen) CalculateOuterGaps(containerWidth, containerHeight int) (horizo
 		heightDiff = 0
 	}
 
-	return widthDiff / 2, heightDiff / 2
+	gaph := (widthDiff / 2) + s.defaultGapHorizontal
+	gapv := (heightDiff / 2) + s.defaultGapVertical
+
+	return gaph, gapv
 }
