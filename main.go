@@ -90,7 +90,7 @@ func (eh *eventHandler) getScreen(ctx context.Context, outputName string) (*scre
 	}
 
 	// get all outputs from wayland
-	outputs, err := output.Get()
+	outputs, err := output.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("output.Get: %w", err)
 	}
@@ -440,8 +440,8 @@ func main() {
 	eh := &eventHandler{
 		client: client,
 		prefferences: &prefferences{
-			PhysicalWindowWidth:  200,
-			PhysicalWindowHeight: 100,
+			PhysicalWindowWidth:  500,
+			PhysicalWindowHeight: 300,
 		},
 		screens: make(map[string]*screen),
 	}
