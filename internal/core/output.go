@@ -1,15 +1,15 @@
-package output
+package core
 
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/joshuarubin/go-sway"
 	"github.com/neurlang/wayland/wl"
 	"github.com/neurlang/wayland/wlclient"
 )
 
+// Output represents physical and pixel dimensions of a monitor.
 type Output struct {
 	Name           string
 	Width          int
@@ -61,14 +61,14 @@ func (ol *outputListener) collect() map[string]*physicalDimensions {
 }
 
 func (ol *outputListener) HandleOutputGeometry(e wl.OutputGeometryEvent) {
-	output := ol.prepareNextOutput()
-	output.PhysicalWidth = int(e.PhysicalWidth)
-	output.PhysicalHeight = int(e.PhysicalHeight)
+	dim := ol.prepareNextOutput()
+	dim.PhysicalWidth = int(e.PhysicalWidth)
+	dim.PhysicalHeight = int(e.PhysicalHeight)
 }
 
 func (ol *outputListener) HandleOutputName(e wl.OutputNameEvent) {
-	output := ol.prepareNextOutput()
-	output.Name = e.Name
+	dim := ol.prepareNextOutput()
+	dim.Name = e.Name
 }
 
 var _ wlclient.RegistryListener = (*registryListener)(nil)
@@ -83,16 +83,63 @@ func (rl *registryListener) HandleRegistryGlobal(e wl.RegistryGlobalEvent) {
 		return
 	}
 
-	output := wlclient.RegistryBindOutputInterface(rl.registry, e.Name, e.Version)
+	out := wlclient.RegistryBindOutputInterface(rl.registry, e.Name, e.Version)
 
-	output.AddGeometryHandler(rl.outputListener)
-	output.AddNameHandler(rl.outputListener)
+	out.AddGeometryHandler(rl.outputListener)
+	out.AddNameHandler(rl.outputListener)
 }
 
 func (rl *registryListener) HandleRegistryGlobalRemove(wl.RegistryGlobalRemoveEvent) {}
 
-// Get returns all wayland outputs
-func Get(ctx context.Context) ([]*Output, error) {
+// OutputCache is a cache of wayland output info.
+type OutputCache struct {
+	swayCl sway.Client
+	lookup map[string]*Output
+
+	isValid bool
+}
+
+func NewOutputCache(cl sway.Client) *OutputCache {
+	return &OutputCache{
+		swayCl: cl,
+		lookup: make(map[string]*Output),
+	}
+}
+
+// look returns value from lookup (translates ok to err)
+func (c *OutputCache) look(name string) (*Output, error) {
+	out, ok := c.lookup[name]
+	if !ok {
+		return nil, fmt.Errorf("output %q not found", name)
+	}
+	return out, nil
+}
+
+// Get returns the specified wayland output
+func (c *OutputCache) Get(ctx context.Context, name string) (*Output, error) {
+	// if cache is valid, return the value
+	if c.isValid {
+		return c.look(name)
+	}
+
+	// if cache is invalid, update it
+	outs, err := c.fetchOutputs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed updating cache: %w", err)
+	}
+
+	c.lookup = outs
+	c.isValid = true
+
+	return c.look(name)
+}
+
+func (c *OutputCache) Invalidate() {
+	c.isValid = false
+}
+
+// fetchOutputs returns an up to date info about outputs.
+func (c *OutputCache) fetchOutputs(ctx context.Context) (map[string]*Output, error) {
 	//
 	// get physical sizes from wayland directly
 	//
@@ -135,32 +182,27 @@ func Get(ctx context.Context) ([]*Output, error) {
 	//
 	// get resolutions from sway
 	//
-	client, err := sway.New(ctx)
+	outs, err := c.swayCl.GetOutputs(ctx)
 	if err != nil {
-		log.Fatalf("sway.New: %s", err)
-	}
-
-	outs, err := client.GetOutputs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("client.GetOutputs: %w", err)
+		return nil, fmt.Errorf("c.swayCl.GetOutputs: %w", err)
 	}
 
 	// merge
-	var outputs []*Output
+	ret := make(map[string]*Output)
 	for _, o := range outs {
 		p, ok := physical[o.Name]
 		if !ok {
 			continue
 		}
 
-		outputs = append(outputs, &Output{
+		ret[o.Name] = &Output{
 			Name:           o.Name,
 			Width:          int(o.Rect.Width),
 			Height:         int(o.Rect.Height),
 			PhysicalWidth:  p.PhysicalWidth,
 			PhysicalHeight: p.PhysicalHeight,
-		})
+		}
 	}
 
-	return outputs, nil
+	return ret, nil
 }
