@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/joshuarubin/go-sway"
 
@@ -93,6 +94,11 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 		return
 	}
 
+	// check if workspace is disabled
+	if _, ok := eh.cfg.DisabledWorkspaces[int(workspace.Num)]; ok {
+		return
+	}
+
 	err = eh.ninja.WorkspaceFlattenChildren(ctx, workspace)
 	if err != nil {
 		log.Printf("eh.ninja.WorkspaceFlattenChildren: %s", err)
@@ -128,6 +134,50 @@ func (eh *eventHandler) Workspace(ctx context.Context, e sway.WorkspaceEvent) {
 	eh.outputCache.Invalidate()
 }
 
+func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
+	// disable workspaces on certain binding events
+	cmd := e.Binding.Command
+	if !strings.Contains(cmd, "reflex:") {
+		return
+	}
+
+	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
+	if err != nil {
+		log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
+		return
+	}
+
+	enable := func() {
+		delete(eh.cfg.DisabledWorkspaces, int(workspace.Num))
+		err := eh.autogap(ctx, workspace)
+		if err != nil {
+			log.Printf("eh.autogap: %s", err)
+			return
+		}
+	}
+
+	disable := func() {
+		eh.cfg.DisabledWorkspaces[int(workspace.Num)] = struct{}{}
+
+		err := eh.ninja.ApplyOuterGaps(ctx, eh.cfg.DefaultGapHorizontal, eh.cfg.DefaultGapVertical)
+		if err != nil {
+			log.Printf("eh.ninja.ApplyOuterGaps: %s", err)
+		}
+	}
+
+	if strings.Contains(cmd, "disable_current") {
+		disable()
+	} else if strings.Contains(cmd, "enable_current") {
+		enable()
+	} else if strings.Contains(cmd, "toggle_current") {
+		if _, ok := eh.cfg.DisabledWorkspaces[int(workspace.Num)]; ok {
+			enable()
+		} else {
+			disable()
+		}
+	}
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -148,7 +198,7 @@ func main() {
 	}
 
 	// start the event loop
-	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace)
+	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace, sway.EventTypeBinding)
 	if err != nil {
 		log.Fatalf("sway.Subscribe: %s", err)
 	}

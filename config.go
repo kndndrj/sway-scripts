@@ -8,18 +8,22 @@ import (
 )
 
 type config struct {
-	// Preffered physical dimensions of windows.
-	PhysicalWindowWidth  int // all physical dimensions are in [mm]
+	// Preffered physical dimensions of windows in [mm].
+	PhysicalWindowWidth  int
 	PhysicalWindowHeight int
 
-	// Default outer gaps
-	DefaultGapHorizontal int // all physical dimensions are in [mm]
+	// Default outer gaps in [px].
+	DefaultGapHorizontal int
 	DefaultGapVertical   int
+
+	// List of disabled workspaces.
+	DisabledWorkspaces map[int]struct{}
 }
 
 func parseConfig() (*config, error) {
 	prefferedWindowSize := flag.String("window_size", "500x300", "Preffered window size. <width>x<height> in [mm].")
 	defaultGaps := flag.Int("default_gaps", 0, "Default outer gaps [px].")
+	disabledWorkspaces := flag.String("disable_workspaces", "", "Comma-seperated list of workspace numbers to disable.")
 
 	flag.Parse()
 
@@ -33,12 +37,19 @@ func parseConfig() (*config, error) {
 		return nil, err
 	}
 
+	disabledWss, err := parseDisabledWorkspaces(*disabledWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+
 	return &config{
 		PhysicalWindowWidth:  width,
 		PhysicalWindowHeight: height,
 
 		DefaultGapHorizontal: gaps,
 		DefaultGapVertical:   gaps,
+
+		DisabledWorkspaces: disabledWss,
 	}, nil
 }
 
@@ -73,4 +84,23 @@ func parseGaps(in int) (int, error) {
 	}
 
 	return in, nil
+}
+
+func parseDisabledWorkspaces(in string) (map[int]struct{}, error) {
+	if in == "" {
+		return make(map[int]struct{}), nil
+	}
+
+	sp := strings.Split(in, ",")
+
+	ret := make(map[int]struct{}, len(sp))
+	for _, s := range sp {
+		w, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid workspace number: %q - not a number", s)
+		}
+		ret[w] = struct{}{}
+	}
+
+	return ret, nil
 }
