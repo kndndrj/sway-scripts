@@ -126,7 +126,6 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 			log.Printf("eh.ninja.NodeApplySplitDirection: %s", err)
 			return
 		}
-
 	}
 }
 

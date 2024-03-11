@@ -72,30 +72,12 @@ func filterConNodes(in []*sway.Node) []*sway.Node {
 
 // WorkspaceGetTopLevelContainers returns top level containers in the provided workspace.
 func (nn *NodeNinja) WorkspaceGetTopLevelContainers(ctx context.Context, workspace *sway.Workspace) ([]*sway.Node, error) {
-	var get func(node *sway.Node) []*sway.Node
-	get = func(node *sway.Node) []*sway.Node {
-		nodes := filterConNodes(node.Nodes)
-
-		if len(nodes) > 1 {
-			return nodes
-		}
-
-		if len(nodes) == 1 {
-			children := get(nodes[0])
-			if len(children) > 0 {
-				return children
-			}
-		}
-
-		return nodes
-	}
-
 	node, err := nn.getWorkspaceNode(ctx, workspace)
 	if err != nil {
 		return nil, fmt.Errorf("eh.getWorkspaceNode: %w", err)
 	}
 
-	return get(node), nil
+	return filterConNodes(node.Nodes), nil
 }
 
 // WorkspaceFlattenChildren flattens children under the provided workspace.
@@ -103,7 +85,9 @@ func (nn *NodeNinja) WorkspaceFlattenChildren(ctx context.Context, workspace *sw
 	var flatten func(rootNode *sway.Node) error
 	flatten = func(rootNode *sway.Node) error {
 		// node without children
-		if len(rootNode.Nodes) == 1 && rootNode.Type == sway.NodeCon && rootNode.Nodes[0].Type == sway.NodeCon {
+		if len(rootNode.Nodes) == 1 &&
+			rootNode.Type == sway.NodeCon &&
+			rootNode.Nodes[0].Type == sway.NodeCon {
 			_, err := nn.client.RunCommand(ctx, fmt.Sprintf("[con_id=%d] split none", rootNode.Nodes[0].ID))
 			if err != nil {
 				return fmt.Errorf("eh.client.RunCommand: %w", err)
@@ -155,7 +139,7 @@ const (
 )
 
 // toSplitCmd converts direction enum to split command.
-func (d Direction) toSplitCmd() string {
+func (d Direction) toLayout() string {
 	if d == DirectionVertical {
 		return "splitv"
 	}
@@ -173,7 +157,12 @@ func (nn *NodeNinja) NodeDetermineSplitDirection(node *sway.Node) Direction {
 
 // NodeApplySplitDirection applies split direction for a specific node.
 func (nn *NodeNinja) NodeApplySplitDirection(ctx context.Context, node *sway.Node, dir Direction) error {
-	cmd := fmt.Sprintf("[con_id=%d] %s", node.ID, dir.toSplitCmd())
+	ly := dir.toLayout()
+	if node.Orientation == ly {
+		return nil
+	}
+
+	cmd := fmt.Sprintf("[con_id=%d] %s", node.ID, ly)
 
 	_, err := nn.client.RunCommand(ctx, cmd)
 	if err != nil {
