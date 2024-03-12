@@ -18,6 +18,8 @@ type eventHandler struct {
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
 	summoner    *scratch.Summoner
+
+	movedScratchpad bool
 }
 
 // Window handler gets called on window events.
@@ -30,6 +32,16 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 	// ignore all app ids other than the one provided
 	if e.Container.AppID == nil || *e.Container.AppID != eh.cfg.AppID {
 		return
+	}
+
+	// move to sway scratchpad the first time running
+	if !eh.movedScratchpad {
+		err := eh.summoner.MoveToScratchpad(ctx)
+		if err != nil {
+			log.Printf("eh.summoner.Float: %s", err)
+			return
+		}
+		eh.movedScratchpad = true
 	}
 
 	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
@@ -47,14 +59,14 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 	// calculate window dimensions based on prefferences and display size
 	shape := eh.summoner.CalculateWindowShape(out)
 
-	err = eh.ninja.NodeResize(ctx, &e.Container, shape.Width, shape.Height)
+	err = eh.summoner.Resize(ctx, shape.Width, shape.Height)
 	if err != nil {
-		log.Printf("eh.ninja.NodeResize: %s", err)
+		log.Printf("eh.summoner.Resize: %s", err)
 		return
 	}
-	err = eh.ninja.NodeMove(ctx, &e.Container, shape.X, shape.Y)
+	err = eh.summoner.Move(ctx, shape.X, shape.Y)
 	if err != nil {
-		log.Printf("eh.ninja.NodeMove: %s", err)
+		log.Printf("eh.summoner.Move: %s", err)
 		return
 	}
 }
@@ -82,7 +94,6 @@ func main() {
 
 	// spawn a server for each scratchpad app_id only once.
 	// this server then listens for events and adjusts scratchpad sizes.
-
 	err = core.LockPidFile(fmt.Sprintf("sway_scratch_%s", cfg.AppID))
 	if err != nil {
 		if errors.Is(err, core.ErrProcessAlreadyRunning) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -180,6 +181,16 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 }
 
 func main() {
+	// check pidfile
+	err := core.LockPidFile("sway_reflex")
+	if err != nil {
+		if errors.Is(err, core.ErrProcessAlreadyRunning) {
+			log.Print("server already running")
+			return
+		}
+		log.Fatalf("LockPidFile: %s", err)
+	}
+
 	ctx := context.Background()
 
 	client, err := sway.New(ctx)
