@@ -1,4 +1,4 @@
-module github.com/kndndrj/sway-reflex
+module github.com/kndndrj/sway-scripts
 
 go 1.21
 

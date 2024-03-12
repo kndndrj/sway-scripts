@@ -1,11 +1,11 @@
-package main
+package reflex
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/kndndrj/sway-reflex/internal/core"
+	"github.com/kndndrj/sway-scripts/internal/core"
 )
 
 func TestNewScreen(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewScreen(t *testing.T) {
 		PhysicalHeight: 100,
 	}
 
-	cfg := &config{
+	cfg := &Config{
 		PhysicalWindowWidth:  100,
 		PhysicalWindowHeight: 50,
 		DefaultGapHorizontal: 5,
@@ -27,7 +27,7 @@ func TestNewScreen(t *testing.T) {
 		DisabledWorkspaces:   map[int]struct{}{},
 	}
 
-	scr := newScreen(out, cfg)
+	scr := NewScreen(out, cfg)
 
 	r.Equal(1990, scr.width) // output minus gaps
 	r.Equal(990, scr.height)
@@ -301,7 +301,7 @@ func TestScreen_CalculateDimensionsAndGaps(t *testing.T) {
 				dir = core.DirectionVertical
 			}
 
-			scr := &screen{
+			scr := &Screen{
 				width:                 tc.screenWidth,
 				height:                tc.screenHeight,
 				prefferedWindowWidth:  tc.prefferedWindowWidth,

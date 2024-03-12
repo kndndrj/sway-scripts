@@ -8,7 +8,8 @@ import (
 
 	"github.com/joshuarubin/go-sway"
 
-	"github.com/kndndrj/sway-reflex/internal/core"
+	"github.com/kndndrj/sway-scripts/internal/core"
+	"github.com/kndndrj/sway-scripts/reflex/reflex"
 )
 
 type eventHandler struct {
@@ -16,17 +17,17 @@ type eventHandler struct {
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
 
-	cfg *config
+	cfg *reflex.Config
 }
 
 // getScreen retrieves or initializes and then returns a screen.
-func (eh *eventHandler) getScreen(ctx context.Context, outputName string) (*screen, error) {
+func (eh *eventHandler) getScreen(ctx context.Context, outputName string) (*reflex.Screen, error) {
 	out, err := eh.outputCache.Get(ctx, outputName)
 	if err != nil {
 		return nil, fmt.Errorf("eh.outputCache.Get: %w", err)
 	}
 
-	return newScreen(out, eh.cfg), nil
+	return reflex.NewScreen(out, eh.cfg), nil
 }
 
 func (eh *eventHandler) autogap(ctx context.Context, workspace *sway.Workspace) error {
@@ -186,7 +187,7 @@ func main() {
 		log.Fatalf("sway.New: %s", err)
 	}
 
-	cfg, err := parseConfig()
+	cfg, err := reflex.ParseConfig()
 	if err != nil {
 		log.Fatalf("parseConfig: %s", err)
 	}

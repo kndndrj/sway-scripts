@@ -1,4 +1,4 @@
-package main
+package reflex
 
 import (
 	"flag"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-type config struct {
+type Config struct {
 	// Preffered physical dimensions of windows in [mm].
 	PhysicalWindowWidth  int
 	PhysicalWindowHeight int
@@ -20,7 +20,7 @@ type config struct {
 	DisabledWorkspaces map[int]struct{}
 }
 
-func parseConfig() (*config, error) {
+func ParseConfig() (*Config, error) {
 	prefferedWindowSize := flag.String("window_size", "500x300", "Preffered window size. <width>x<height> in [mm].")
 	defaultGaps := flag.Int("default_gaps", 0, "Default outer gaps [px].")
 	disabledWorkspaces := flag.String("disable_workspaces", "", "Comma-seperated list of workspace numbers to disable.")
@@ -42,7 +42,7 @@ func parseConfig() (*config, error) {
 		return nil, err
 	}
 
-	return &config{
+	return &Config{
 		PhysicalWindowWidth:  width,
 		PhysicalWindowHeight: height,
 

@@ -1,11 +1,11 @@
-package main
+package reflex
 
 import (
-	"github.com/kndndrj/sway-reflex/internal/core"
+	"github.com/kndndrj/sway-scripts/internal/core"
 )
 
-// screen represents a working unit of an output.
-type screen struct {
+// Screen represents a working unit of an output.
+type Screen struct {
 	width  int
 	height int
 
@@ -20,7 +20,7 @@ type screen struct {
 }
 
 // IsFilled returns true if based on provided container dimensions screen is fully filled.
-func (s *screen) IsFilled(cwidth, cheight int) bool {
+func (s *Screen) IsFilled(cwidth, cheight int) bool {
 	if cwidth < s.width {
 		return false
 	}
@@ -31,13 +31,13 @@ func (s *screen) IsFilled(cwidth, cheight int) bool {
 }
 
 // IsFilled returns true if based on provided container dimensions screen is fully filled.
-func (s *screen) Direction() core.Direction {
+func (s *Screen) Direction() core.Direction {
 	return s.direction
 }
 
-// newScreen retrieves or initializes and then returns a screen.
+// NewScreen retrieves or initializes and then returns a screen.
 // if no preffered height is given, width is used for both dimensions.
-func newScreen(out *core.Output, cfg *config) *screen {
+func NewScreen(out *core.Output, cfg *Config) *Screen {
 	// calculate pixel dimensions from actual size and prefferences
 	prefferedWindowWidth := (cfg.PhysicalWindowWidth * out.Width) / out.PhysicalWidth
 	prefferedWindowHeight := (cfg.PhysicalWindowHeight * out.Height) / out.PhysicalHeight
@@ -50,7 +50,7 @@ func newScreen(out *core.Output, cfg *config) *screen {
 		dir = core.DirectionVertical
 	}
 
-	return &screen{
+	return &Screen{
 		width:  width,
 		height: height,
 
@@ -66,7 +66,7 @@ func newScreen(out *core.Output, cfg *config) *screen {
 
 // CalculateContainerDimensions adjusts top level container (aka. all windows combined) dimensions,
 // so that they fit on the screen.
-func (s *screen) CalculateContainerDimensions(numOfTopLevelContainers int) (width, height int) {
+func (s *Screen) CalculateContainerDimensions(numOfTopLevelContainers int) (width, height int) {
 	if numOfTopLevelContainers < 1 {
 		return 0, 0
 	}
@@ -131,7 +131,7 @@ func (s *screen) CalculateContainerDimensions(numOfTopLevelContainers int) (widt
 }
 
 // CalculateOuterGaps calculates gaps between the edge of the screen and top level container.
-func (s *screen) CalculateOuterGaps(containerWidth, containerHeight int) (horizontal, vertical int) {
+func (s *Screen) CalculateOuterGaps(containerWidth, containerHeight int) (horizontal, vertical int) {
 	widthDiff := s.width - containerWidth
 	if widthDiff < 0 {
 		widthDiff = 0
