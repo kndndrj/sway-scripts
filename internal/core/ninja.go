@@ -171,3 +171,27 @@ func (nn *NodeNinja) NodeApplySplitDirection(ctx context.Context, node *sway.Nod
 
 	return nil
 }
+
+// NodeResize applies dimensions to specified node.
+func (nn *NodeNinja) NodeResize(ctx context.Context, node *sway.Node, width, height int) error {
+	cmd := fmt.Sprintf("[con_id=%d] resize set %d %d", node.ID, width, height)
+
+	_, err := nn.client.RunCommand(ctx, cmd)
+	if err != nil {
+		return fmt.Errorf("eh.client.RunCommand: %w", err)
+	}
+
+	return nil
+}
+
+// NodeMove moves the specified node to the position
+func (nn *NodeNinja) NodeMove(ctx context.Context, node *sway.Node, x, y int) error {
+	cmd := fmt.Sprintf("[con_id=%d] move absolute position %d %d", node.ID, x, y)
+
+	_, err := nn.client.RunCommand(ctx, cmd)
+	if err != nil {
+		return fmt.Errorf("eh.client.RunCommand: %w", err)
+	}
+
+	return nil
+}
