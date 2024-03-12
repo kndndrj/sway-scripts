@@ -5,10 +5,13 @@ go 1.21
 require (
 	github.com/joshuarubin/go-sway v1.2.0
 	github.com/neurlang/wayland v0.1.1
+	github.com/stretchr/testify v1.3.0
 )
 
 require (
+	github.com/davecgh/go-spew v1.1.0 // indirect
 	github.com/joshuarubin/lifecycle v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/yalue/native_endian v1.0.1 // indirect
 	go.uber.org/atomic v1.3.2 // indirect
 	go.uber.org/multierr v1.1.0 // indirect

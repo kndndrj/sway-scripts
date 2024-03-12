@@ -67,6 +67,10 @@ func newScreen(out *core.Output, cfg *config) *screen {
 // CalculateContainerDimensions adjusts top level container (aka. all windows combined) dimensions,
 // so that they fit on the screen.
 func (s *screen) CalculateContainerDimensions(numOfTopLevelContainers int) (width, height int) {
+	if numOfTopLevelContainers < 1 {
+		return 0, 0
+	}
+
 	if s.direction == core.DirectionHorizontal {
 		fullWidth := s.prefferedWindowWidth * numOfTopLevelContainers
 
