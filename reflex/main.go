@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/joshuarubin/go-sway"
@@ -15,6 +16,9 @@ import (
 
 type eventHandler struct {
 	sway.EventHandler
+
+	log *log.Logger
+
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
 
@@ -92,7 +96,7 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 
 	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
 	if err != nil {
-		log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
+		eh.log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
 		return
 	}
 
@@ -103,13 +107,13 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 
 	err = eh.ninja.WorkspaceFlattenChildren(ctx, workspace)
 	if err != nil {
-		log.Printf("eh.ninja.WorkspaceFlattenChildren: %s", err)
+		eh.log.Printf("eh.ninja.WorkspaceFlattenChildren: %s", err)
 		return
 	}
 
 	topLevelContainers, err := eh.ninja.WorkspaceGetTopLevelContainers(ctx, workspace)
 	if err != nil {
-		log.Printf("eh.ninja.WorkspaceGetTopLevelContainers: %s", err)
+		eh.log.Printf("eh.ninja.WorkspaceGetTopLevelContainers: %s", err)
 		return
 	}
 
@@ -118,14 +122,14 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 	if nodeExistsInSet(topLevelContainers, &e.Container) || e.Change == sway.WindowClose {
 		err := eh.autogap(ctx, workspace)
 		if err != nil {
-			log.Printf("eh.autogap: %s", err)
+			eh.log.Printf("eh.autogap: %s", err)
 			return
 		}
 	} else {
 		dir := eh.ninja.NodeDetermineSplitDirection(&e.Container)
 		err = eh.ninja.NodeApplySplitDirection(ctx, &e.Container, dir)
 		if err != nil {
-			log.Printf("eh.ninja.NodeApplySplitDirection: %s", err)
+			eh.log.Printf("eh.ninja.NodeApplySplitDirection: %s", err)
 			return
 		}
 	}
@@ -145,7 +149,7 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 
 	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
 	if err != nil {
-		log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
+		eh.log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
 		return
 	}
 
@@ -153,7 +157,7 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 		delete(eh.cfg.DisabledWorkspaces, int(workspace.Num))
 		err := eh.autogap(ctx, workspace)
 		if err != nil {
-			log.Printf("eh.autogap: %s", err)
+			eh.log.Printf("eh.autogap: %s", err)
 			return
 		}
 	}
@@ -163,7 +167,7 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 
 		err := eh.ninja.ApplyOuterGaps(ctx, eh.cfg.DefaultGapHorizontal, eh.cfg.DefaultGapVertical)
 		if err != nil {
-			log.Printf("eh.ninja.ApplyOuterGaps: %s", err)
+			eh.log.Printf("eh.ninja.ApplyOuterGaps: %s", err)
 		}
 	}
 
@@ -181,26 +185,28 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 }
 
 func main() {
+	logger := log.New(os.Stdout, "scratch:", log.LstdFlags)
+
 	// check pidfile
 	err := core.LockPidFile("sway_reflex")
 	if err != nil {
 		if errors.Is(err, core.ErrProcessAlreadyRunning) {
-			log.Print("server already running")
+			logger.Print("server already running")
 			return
 		}
-		log.Fatalf("LockPidFile: %s", err)
+		logger.Fatalf("LockPidFile: %s", err)
 	}
 
 	ctx := context.Background()
 
 	client, err := sway.New(ctx)
 	if err != nil {
-		log.Fatalf("sway.New: %s", err)
+		logger.Fatalf("sway.New: %s", err)
 	}
 
 	cfg, err := reflex.ParseConfig()
 	if err != nil {
-		log.Fatalf("parseConfig: %s", err)
+		logger.Fatalf("parseConfig: %s", err)
 	}
 
 	eh := &eventHandler{
@@ -212,6 +218,6 @@ func main() {
 	// start the event loop
 	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace, sway.EventTypeBinding)
 	if err != nil {
-		log.Fatalf("sway.Subscribe: %s", err)
+		logger.Fatalf("sway.Subscribe: %s", err)
 	}
 }

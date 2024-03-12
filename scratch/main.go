@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/joshuarubin/go-sway"
 	"github.com/kndndrj/sway-scripts/internal/core"
@@ -14,12 +15,12 @@ import (
 type eventHandler struct {
 	sway.EventHandler
 
+	log *log.Logger
+
 	cfg         *scratch.Config
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
 	summoner    *scratch.Summoner
-
-	movedScratchpad bool
 }
 
 // Window handler gets called on window events.
@@ -35,24 +36,23 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 	}
 
 	// move to sway scratchpad the first time running
-	if !eh.movedScratchpad {
+	if e.Change == sway.WindowNew {
 		err := eh.summoner.MoveToScratchpad(ctx)
 		if err != nil {
-			log.Printf("eh.summoner.Float: %s", err)
+			eh.log.Printf("eh.summoner.Float: %s", err)
 			return
 		}
-		eh.movedScratchpad = true
 	}
 
 	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
 	if err != nil {
-		log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
+		eh.log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
 		return
 	}
 
 	out, err := eh.outputCache.Get(ctx, workspace.Output)
 	if err != nil {
-		log.Printf("eh.outputCache.Get: %s", err)
+		eh.log.Printf("eh.outputCache.Get: %s", err)
 		return
 	}
 
@@ -61,12 +61,12 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 
 	err = eh.summoner.Resize(ctx, shape.Width, shape.Height)
 	if err != nil {
-		log.Printf("eh.summoner.Resize: %s", err)
+		eh.log.Printf("eh.summoner.Resize: %s", err)
 		return
 	}
 	err = eh.summoner.Move(ctx, shape.X, shape.Y)
 	if err != nil {
-		log.Printf("eh.summoner.Move: %s", err)
+		eh.log.Printf("eh.summoner.Move: %s", err)
 		return
 	}
 }
@@ -74,14 +74,16 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 func main() {
 	ctx := context.Background()
 
+	logger := log.New(os.Stdout, "scratch:", log.LstdFlags)
+
 	client, err := sway.New(ctx)
 	if err != nil {
-		log.Fatalf("sway.New: %s", err)
+		logger.Fatalf("sway.New: %s", err)
 	}
 
 	cfg, err := scratch.ParseConfig()
 	if err != nil {
-		log.Fatalf("scratch.ParseConfig: %s", err)
+		logger.Fatalf("scratch.ParseConfig: %s", err)
 	}
 
 	s := scratch.NewSummoner(client, cfg)
@@ -89,7 +91,7 @@ func main() {
 	// open/show scratchpad immediately
 	err = s.Summon(ctx)
 	if err != nil {
-		log.Fatalf("s.Touch: %s", err)
+		logger.Fatalf("s.Touch: %s", err)
 	}
 
 	// spawn a server for each scratchpad app_id only once.
@@ -97,13 +99,13 @@ func main() {
 	err = core.LockPidFile(fmt.Sprintf("sway_scratch_%s", cfg.AppID))
 	if err != nil {
 		if errors.Is(err, core.ErrProcessAlreadyRunning) {
-			log.Printf("server for scratchpad with app id %q already running", cfg.AppID)
 			return
 		}
-		log.Fatalf("LockPidFile: %s", err)
+		logger.Fatalf("LockPidFile: %s", err)
 	}
 
 	eh := &eventHandler{
+		log:         logger,
 		cfg:         cfg,
 		outputCache: core.NewOutputCache(client),
 		ninja:       core.NewNodeNinja(client),
@@ -113,6 +115,6 @@ func main() {
 	// start the event loop
 	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow)
 	if err != nil {
-		log.Fatalf("sway.Subscribe: %s", err)
+		logger.Fatalf("sway.Subscribe: %s", err)
 	}
 }
