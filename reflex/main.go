@@ -90,8 +90,15 @@ func nodeExistsInSet(set []*sway.Node, n *sway.Node) bool {
 
 // Window handler gets called on window events.
 func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
-	if e.Container.Type == sway.NodeFloatingCon {
+	if e.Container.Type != sway.NodeCon {
 		return
+	}
+
+	// check if app_id is disabled
+	if e.Container.AppID != nil {
+		if _, ok := eh.cfg.DisabledAppIDs[*e.Container.AppID]; ok {
+			return
+		}
 	}
 
 	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
@@ -185,7 +192,7 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 }
 
 func main() {
-	logger := log.New(os.Stdout, "scratch:", log.LstdFlags)
+	logger := log.New(os.Stdout, "reflex: ", log.LstdFlags)
 
 	// check pidfile
 	err := core.LockPidFile("sway_reflex")
@@ -210,6 +217,7 @@ func main() {
 	}
 
 	eh := &eventHandler{
+		log:         logger,
 		cfg:         cfg,
 		outputCache: core.NewOutputCache(client),
 		ninja:       core.NewNodeNinja(client),

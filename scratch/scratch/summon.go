@@ -10,21 +10,21 @@ import (
 	"github.com/kndndrj/sway-scripts/internal/core"
 )
 
-// Scratchpad Summoner is used to cast spells around scratchpads.
-type Summoner struct {
+// Scratchpad represents a single scratchpad.
+type Scratchpad struct {
 	client sway.Client
 	cfg    *Config
 }
 
-func NewSummoner(c sway.Client, cfg *Config) *Summoner {
-	return &Summoner{
+func NewSummoner(c sway.Client, cfg *Config) *Scratchpad {
+	return &Scratchpad{
 		client: c,
 		cfg:    cfg,
 	}
 }
 
 // MoveToScratchpad configures the scratchpad as scratchpad.
-func (s *Summoner) MoveToScratchpad(ctx context.Context) error {
+func (s *Scratchpad) MoveToScratchpad(ctx context.Context) error {
 	cmd := fmt.Sprintf("[app_id=%q] move scratchpad; [app_id=%q] scratchpad show", s.cfg.AppID, s.cfg.AppID)
 
 	_, err := s.client.RunCommand(ctx, cmd)
@@ -35,7 +35,7 @@ func (s *Summoner) MoveToScratchpad(ctx context.Context) error {
 	return nil
 }
 
-func (s *Summoner) spawnWindow(ctx context.Context) error {
+func (s *Scratchpad) spawnWindow(ctx context.Context) error {
 	command, err := s.cfg.GenTermCmd(s.cfg.AppID)
 	if err != nil {
 		return fmt.Errorf("h.cfg.GenTermCmd: %w", err)
@@ -51,7 +51,7 @@ func (s *Summoner) spawnWindow(ctx context.Context) error {
 	return nil
 }
 
-func (s *Summoner) showScratchpad(ctx context.Context) error {
+func (s *Scratchpad) showScratchpad(ctx context.Context) error {
 	cmd := fmt.Sprintf("[app_id=%q] scratchpad show", s.cfg.AppID)
 
 	_, err := s.client.RunCommand(ctx, cmd)
@@ -63,7 +63,7 @@ func (s *Summoner) showScratchpad(ctx context.Context) error {
 }
 
 // Summon tries to toggle the scratchpad or opens a new one.
-func (s *Summoner) Summon(ctx context.Context) error {
+func (s *Scratchpad) Summon(ctx context.Context) error {
 	err := s.showScratchpad(ctx)
 	if err != nil && strings.Contains(err.Error(), "No matching node") {
 		err := s.spawnWindow(ctx)
@@ -85,7 +85,7 @@ type Shape struct {
 	Height int
 }
 
-func (eh *Summoner) CalculateWindowShape(out *core.Output) *Shape {
+func (eh *Scratchpad) CalculateWindowShape(out *core.Output) *Shape {
 	width := (eh.cfg.WindowWidth * out.Width) / out.PhysicalWidth
 	height := (eh.cfg.WindowHeight * out.Height) / out.PhysicalHeight
 
@@ -122,7 +122,7 @@ func (eh *Summoner) CalculateWindowShape(out *core.Output) *Shape {
 }
 
 // Resize applies dimensions to specified node.
-func (s *Summoner) Resize(ctx context.Context, width, height int) error {
+func (s *Scratchpad) Resize(ctx context.Context, width, height int) error {
 	cmd := fmt.Sprintf("[app_id=%q] resize set %d %d", s.cfg.AppID, width, height)
 
 	_, err := s.client.RunCommand(ctx, cmd)
@@ -134,7 +134,7 @@ func (s *Summoner) Resize(ctx context.Context, width, height int) error {
 }
 
 // Move moves the specified node to the position
-func (s *Summoner) Move(ctx context.Context, x, y int) error {
+func (s *Scratchpad) Move(ctx context.Context, x, y int) error {
 	cmd := fmt.Sprintf("[app_id=%q] move absolute position %d %d", s.cfg.AppID, x, y)
 
 	_, err := s.client.RunCommand(ctx, cmd)

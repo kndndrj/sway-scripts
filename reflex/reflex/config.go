@@ -18,12 +18,15 @@ type Config struct {
 
 	// List of disabled workspaces.
 	DisabledWorkspaces map[int]struct{}
+	// List of disabled app_ids.
+	DisabledAppIDs map[string]struct{}
 }
 
 func ParseConfig() (*Config, error) {
 	prefferedWindowSize := flag.String("window_size", "500x300", "Preffered window size. <width>x<height> in [mm].")
 	defaultGaps := flag.Int("default_gaps", 0, "Default outer gaps [px].")
 	disabledWorkspaces := flag.String("disable_workspaces", "", "Comma-seperated list of workspace numbers to disable.")
+	disabledAppIDsFlag := flag.String("disable_app_ids", "", "Comma-seperated list of app_ids to disable.")
 
 	flag.Parse()
 
@@ -42,6 +45,11 @@ func ParseConfig() (*Config, error) {
 		return nil, err
 	}
 
+	disabledAppIDs, err := parseDisabledAppIDs(*disabledAppIDsFlag)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		PhysicalWindowWidth:  width,
 		PhysicalWindowHeight: height,
@@ -50,6 +58,8 @@ func ParseConfig() (*Config, error) {
 		DefaultGapVertical:   gaps,
 
 		DisabledWorkspaces: disabledWss,
+
+		DisabledAppIDs: disabledAppIDs,
 	}, nil
 }
 
@@ -100,6 +110,21 @@ func parseDisabledWorkspaces(in string) (map[int]struct{}, error) {
 			return nil, fmt.Errorf("invalid workspace number: %q - not a number", s)
 		}
 		ret[w] = struct{}{}
+	}
+
+	return ret, nil
+}
+
+func parseDisabledAppIDs(in string) (map[string]struct{}, error) {
+	if in == "" {
+		return make(map[string]struct{}), nil
+	}
+
+	sp := strings.Split(in, ",")
+
+	ret := make(map[string]struct{}, len(sp))
+	for _, s := range sp {
+		ret[s] = struct{}{}
 	}
 
 	return ret, nil

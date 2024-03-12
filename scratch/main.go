@@ -20,7 +20,7 @@ type eventHandler struct {
 	cfg         *scratch.Config
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
-	summoner    *scratch.Summoner
+	scratchpad  *scratch.Scratchpad
 }
 
 // Window handler gets called on window events.
@@ -37,9 +37,9 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 
 	// move to sway scratchpad the first time running
 	if e.Change == sway.WindowNew {
-		err := eh.summoner.MoveToScratchpad(ctx)
+		err := eh.scratchpad.MoveToScratchpad(ctx)
 		if err != nil {
-			eh.log.Printf("eh.summoner.Float: %s", err)
+			eh.log.Printf("eh.summoner.MoveToScratchpad: %s", err)
 			return
 		}
 	}
@@ -57,24 +57,29 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 	}
 
 	// calculate window dimensions based on prefferences and display size
-	shape := eh.summoner.CalculateWindowShape(out)
+	shape := eh.scratchpad.CalculateWindowShape(out)
 
-	err = eh.summoner.Resize(ctx, shape.Width, shape.Height)
+	err = eh.scratchpad.Resize(ctx, shape.Width, shape.Height)
 	if err != nil {
 		eh.log.Printf("eh.summoner.Resize: %s", err)
 		return
 	}
-	err = eh.summoner.Move(ctx, shape.X, shape.Y)
+	err = eh.scratchpad.Move(ctx, shape.X, shape.Y)
 	if err != nil {
 		eh.log.Printf("eh.summoner.Move: %s", err)
 		return
 	}
 }
 
+// Workspace handler gets called on workspace events.
+func (eh *eventHandler) Workspace(ctx context.Context, e sway.WorkspaceEvent) {
+	eh.outputCache.Invalidate()
+}
+
 func main() {
 	ctx := context.Background()
 
-	logger := log.New(os.Stdout, "scratch:", log.LstdFlags)
+	logger := log.New(os.Stdout, "scratch: ", log.LstdFlags)
 
 	client, err := sway.New(ctx)
 	if err != nil {
@@ -109,11 +114,11 @@ func main() {
 		cfg:         cfg,
 		outputCache: core.NewOutputCache(client),
 		ninja:       core.NewNodeNinja(client),
-		summoner:    s,
+		scratchpad:  s,
 	}
 
 	// start the event loop
-	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow)
+	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace)
 	if err != nil {
 		logger.Fatalf("sway.Subscribe: %s", err)
 	}
