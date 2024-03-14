@@ -3,6 +3,7 @@ package scratch
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/joshuarubin/go-sway"
@@ -11,6 +12,7 @@ import (
 )
 
 type Server struct {
+	log         *log.Logger
 	client      sway.Client
 	outputCache *core.OutputCache
 	ninja       *core.NodeNinja
@@ -20,8 +22,9 @@ type Server struct {
 	mu sync.Mutex
 }
 
-func NewServer(c sway.Client, oc *core.OutputCache, ninja *core.NodeNinja) *Server {
+func NewServer(logger *log.Logger, c sway.Client, oc *core.OutputCache, ninja *core.NodeNinja) *Server {
 	return &Server{
+		log:         logger,
 		client:      c,
 		outputCache: oc,
 		ninja:       ninja,
@@ -102,7 +105,7 @@ func (s *Server) ToggleScratchpad(ctx context.Context, id string, def *Definitio
 	}
 
 	// otherwise create a new scratchpad and toggle (open it)
-	sc, err := NewScratchpad(s.client, def)
+	sc, err := NewScratchpad(s.log, s.client, def)
 	if err != nil {
 		return err
 	}

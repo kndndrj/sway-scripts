@@ -68,13 +68,14 @@ func (s *Server[MSG]) Serve(ctx context.Context) error {
 
 		message, err := s.decodeJson(fd)
 		if err != nil {
-			log.Print(err)
+			s.log.Print(err)
 			continue
 		}
 		if message == nil {
 			s.log.Printf("empty socket message")
 			continue
 		}
+		s.log.Print("recieved message via socket")
 
 		err = s.cb(ctx, message)
 		if err != nil {

@@ -45,7 +45,7 @@ func Invoke(socketName string, msg any) error {
 
 	c, err := net.Dial("unix", path)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("net.Dial: %w", err)
 	}
 	defer c.Close()
 

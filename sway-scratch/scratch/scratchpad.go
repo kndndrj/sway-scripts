@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 
@@ -45,11 +46,12 @@ func (d *Definition) Validate() error {
 type Scratchpad struct {
 	client sway.Client
 	def    *Definition
+	log    *log.Logger
 
 	Pid int
 }
 
-func NewScratchpad(c sway.Client, def *Definition) (*Scratchpad, error) {
+func NewScratchpad(logger *log.Logger, c sway.Client, def *Definition) (*Scratchpad, error) {
 	err := def.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("def.Validate: %w", err)
@@ -58,12 +60,15 @@ func NewScratchpad(c sway.Client, def *Definition) (*Scratchpad, error) {
 	return &Scratchpad{
 		client: c,
 		def:    def,
+		log:    logger,
 	}, nil
 }
 
 func (s *Scratchpad) spawnWindow(ctx context.Context) (pid int, err error) {
 	// launch the program
 	cmd := exec.CommandContext(ctx, "sh", "-c", s.def.Cmd)
+	cmd.Stdout = wrapLogger("command out: ", s.log)
+	cmd.Stderr = wrapLogger("command err: ", s.log)
 	err = cmd.Start()
 	if err != nil {
 		return 0, fmt.Errorf("cmd.Start: %w", err)
@@ -169,6 +174,7 @@ func (s *Scratchpad) Reposition(ctx context.Context, shape *Shape) error {
 		"[pid=%d] resize set %d %d; [pid=%d] move absolute position %d %d",
 		s.Pid, shape.Width, shape.Height, s.Pid, shape.X, shape.Y,
 	)
+	fmt.Println(cmd)
 
 	_, err := s.client.RunCommand(ctx, cmd)
 	if err != nil {

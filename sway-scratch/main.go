@@ -82,7 +82,7 @@ func mainServer() error {
 	}
 
 	// server that manages scratchpads
-	server := scratch.NewServer(client, core.NewOutputCache(client), core.NewNodeNinja(client))
+	server := scratch.NewServer(logger, client, core.NewOutputCache(client), core.NewNodeNinja(client))
 
 	// event handler for sway events
 	events := newEventHandler(logger, server)
