@@ -70,6 +70,12 @@ func mainServer() error {
 		return fmt.Errorf("core.LockPidFile: %w", err)
 	}
 
+	// clear the socket file if it exists
+	err = socket.ClearSocket(socketName)
+	if err != nil {
+		return fmt.Errorf("socket.ClearSocket: %w", err)
+	}
+
 	client, err := sway.New(ctx)
 	if err != nil {
 		return fmt.Errorf("sway.New: %w", err)

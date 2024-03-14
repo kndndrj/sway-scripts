@@ -10,7 +10,7 @@ import (
 
 func getSocketPath(name string) (string, error) {
 	if name == "" {
-		return "", errors.New("no pidfile name passed")
+		return "", errors.New("no socket name passed")
 	}
 
 	// get file location
@@ -20,6 +20,21 @@ func getSocketPath(name string) (string, error) {
 	}
 
 	return dir + "/" + name + ".sock", nil
+}
+
+// ClearSocket forcefully removes the socket from the path.
+// CAUTION!
+func ClearSocket(name string) error {
+	path, err := getSocketPath(name)
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("os.Remove: %w", err)
+	}
+	return nil
 }
 
 func Invoke(socketName string, msg any) error {
