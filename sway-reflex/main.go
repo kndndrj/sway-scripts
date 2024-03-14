@@ -11,7 +11,7 @@ import (
 	"github.com/joshuarubin/go-sway"
 
 	"github.com/kndndrj/sway-scripts/internal/core"
-	"github.com/kndndrj/sway-scripts/reflex/reflex"
+	"github.com/kndndrj/sway-scripts/sway-reflex/reflex"
 )
 
 type eventHandler struct {

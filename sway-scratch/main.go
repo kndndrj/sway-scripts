@@ -13,7 +13,7 @@ import (
 
 	"github.com/kndndrj/sway-scripts/internal/core"
 	"github.com/kndndrj/sway-scripts/internal/socket"
-	"github.com/kndndrj/sway-scripts/scratch/scratch"
+	"github.com/kndndrj/sway-scripts/sway-scratch/scratch"
 )
 
 // eventHandler passes event messages to server.
