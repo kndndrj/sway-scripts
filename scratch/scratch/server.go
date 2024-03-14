@@ -102,9 +102,12 @@ func (s *Server) ToggleScratchpad(ctx context.Context, id string, def *Definitio
 	}
 
 	// otherwise create a new scratchpad and toggle (open it)
-	sc := NewScratchpad(s.client, def)
+	sc, err := NewScratchpad(s.client, def)
+	if err != nil {
+		return err
+	}
 
-	err := sc.Toggle(ctx)
+	err = sc.Toggle(ctx)
 	if err != nil {
 		return fmt.Errorf("sc.Toggle: %w", err)
 	}

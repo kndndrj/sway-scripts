@@ -1,30 +1,82 @@
 package scratch
 
 import (
-	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
-	"text/template"
 )
 
-type Config struct {
-	AppID        string
+type Subcommand int
+
+const (
+	SubcommandUnknown Subcommand = iota
+	SubcommandServe
+	SubcommandCall
+)
+
+func SubcommandFromString(s string) Subcommand {
+	switch s {
+	case "serve":
+		return SubcommandServe
+	case "call":
+		return SubcommandCall
+	}
+	return SubcommandUnknown
+}
+
+func (s Subcommand) String() string {
+	switch s {
+	case SubcommandServe:
+		return "serve"
+	case SubcommandCall:
+		return "call"
+	}
+	return "unknown"
+}
+
+func GetSubcommand() (Subcommand, error) {
+	if len(os.Args) < 2 {
+		return 0, errors.New("expected a subcommand")
+	}
+
+	subcommand := SubcommandFromString(os.Args[1])
+	if subcommand == SubcommandUnknown {
+		return 0, fmt.Errorf("unknown subcommand: %q", os.Args[1])
+	}
+
+	return subcommand, nil
+}
+
+type CallConfig struct {
+	ID           string
 	Position     Position
-	GenTermCmd   func(appID string) (cmd string, err error)
+	Cmd          string
 	WindowWidth  int
 	WindowHeight int
 }
 
-func ParseConfig() (*Config, error) {
-	appIDFlag := flag.String("app_id", "scratchpad", "App id to be used by the scratchpad.")
-	positionFlag := flag.String("position", "center", "Position of scratchpad. Valid are: left, right, center.")
-	termCmdFlag := flag.String("term", "kitty --class {{ app_id }}", "Command to be used for opening the scratchpad. It MUST contain the flag to pass an app id to it.")
-	windowSizeFlag := flag.String("window_size", "200x100", "Preffered window size. <width>x<height> in [mm].")
+func ParseCallFlags() (*CallConfig, error) {
+	// third argument is a window command
+	if len(os.Args) < 3 || os.Args[2][0] == '-' {
+		return nil, errors.New("expected a window command - example: kitty")
+	}
 
-	flag.Parse()
+	cmd := os.Args[2]
+
+	const placeholderID = "<cmd>_<position>_<window_size>"
+
+	subcmd := flag.NewFlagSet(SubcommandCall.String(), flag.ExitOnError)
+	idFlag := subcmd.String("id", placeholderID, "Unique id to be used by the scratchpad.")
+	positionFlag := subcmd.String("position", "center", "Position of scratchpad. Valid are: left, right, center.")
+	windowSizeFlag := subcmd.String("window_size", "200x100", "Preffered window size. <width>x<height> in [mm].")
+
+	err := subcmd.Parse(os.Args[3:])
+	if err != nil {
+		return nil, err
+	}
 
 	width, height, err := parseWindowSize(*windowSizeFlag)
 	if err != nil {
@@ -36,20 +88,15 @@ func ParseConfig() (*Config, error) {
 		return nil, err
 	}
 
-	appID, err := parseAppID(*appIDFlag)
-	if err != nil {
-		return nil, err
+	id := *idFlag
+	if *idFlag == "" || *idFlag == placeholderID {
+		id = fmt.Sprintf("%s_%d_%dx%d", cmd, pos, width, height)
 	}
 
-	genCmd, err := parseTermCmd(*termCmdFlag)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Config{
-		AppID:        appID,
+	return &CallConfig{
+		ID:           id,
 		Position:     pos,
-		GenTermCmd:   genCmd,
+		Cmd:          cmd,
 		WindowWidth:  width,
 		WindowHeight: height,
 	}, nil
@@ -68,54 +115,6 @@ func parsePosition(in string) (Position, error) {
 	}
 
 	return 0, fmt.Errorf("invalid position flag: %q", in)
-}
-
-func parseAppID(appID string) (string, error) {
-	if appID == "" {
-		return "", errors.New("app_id not provided.")
-	}
-
-	return appID, nil
-}
-
-var (
-	errTermCmdNoAppID = errors.New("no way to specify an app_id in the provided term command. Need a flag with {{ app_id }}.")
-	errTermCmdEmpty   = errors.New("no command for terminal provided")
-)
-
-func parseTermCmd(cmd string) (func(string) (string, error), error) {
-	if cmd == "" {
-		return nil, errTermCmdEmpty
-	}
-
-	if !strings.Contains(cmd, "app_id") {
-		return nil, errTermCmdNoAppID
-	}
-
-	return expandCmd(cmd), nil
-}
-
-func expandCmd(cmd string) func(string) (string, error) {
-	return func(appID string) (string, error) {
-		tmpl, err := template.New("expand_term_cmd").
-			Funcs(template.FuncMap{
-				"app_id": func() string {
-					return appID
-				},
-			}).
-			Parse(cmd)
-		if err != nil {
-			return "", fmt.Errorf("template.Parse: %w", err)
-		}
-
-		var out bytes.Buffer
-		err = tmpl.Execute(&out, nil)
-		if err != nil {
-			return "", err
-		}
-
-		return out.String(), nil
-	}
 }
 
 func parseWindowSize(in string) (w, h int, err error) {

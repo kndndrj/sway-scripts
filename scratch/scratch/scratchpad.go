@@ -27,6 +27,20 @@ type Definition struct {
 	WindowHeight int
 }
 
+func (d *Definition) Validate() error {
+	if d.Cmd == "" {
+		return errors.New("no command provided")
+	}
+	if d.Position < 0 || d.Position > PositionRight {
+		return fmt.Errorf("invalid position: %d", d.Position)
+	}
+	if d.WindowWidth < 1 || d.WindowHeight < 1 {
+		return fmt.Errorf("invalid window dimensions: %d x %d", d.WindowWidth, d.WindowHeight)
+	}
+
+	return nil
+}
+
 // Scratchpad represents a single scratchpad.
 type Scratchpad struct {
 	client sway.Client
@@ -35,11 +49,16 @@ type Scratchpad struct {
 	Pid int
 }
 
-func NewScratchpad(c sway.Client, def *Definition) *Scratchpad {
+func NewScratchpad(c sway.Client, def *Definition) (*Scratchpad, error) {
+	err := def.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("def.Validate: %w", err)
+	}
+
 	return &Scratchpad{
 		client: c,
 		def:    def,
-	}
+	}, nil
 }
 
 func (s *Scratchpad) spawnWindow(ctx context.Context) (pid int, err error) {

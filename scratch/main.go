@@ -114,33 +114,49 @@ func mainServer() error {
 	return nil
 }
 
+// mainServer is a main function for call mode.
+func mainCall() error {
+	cfg, err := scratch.ParseCallFlags()
+	if err != nil {
+		return err
+	}
+	err = socket.Invoke(socketName,
+		&socketMessage{
+			ID: cfg.ID,
+			Definition: &scratch.Definition{
+				Position:     cfg.Position,
+				Cmd:          cfg.Cmd,
+				WindowWidth:  cfg.WindowWidth,
+				WindowHeight: cfg.WindowHeight,
+			},
+		})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
-	cfg, err := scratch.ParseConfig()
+	subcmd, err := scratch.GetSubcommand()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// server
-	if cfg.AppID == "asdf" {
+	switch subcmd {
+	case scratch.SubcommandServe:
 		err := mainServer()
 		if err != nil {
 			log.Fatalf("server: %s", err)
 		}
 		return
-	}
-
-	// clienclient
-	err = socket.Invoke(socketName,
-		&socketMessage{
-			ID: "someid",
-			Definition: &scratch.Definition{
-				Position:     scratch.PositionLeft,
-				Cmd:          "kitty",
-				WindowWidth:  300,
-				WindowHeight: 100,
-			},
-		})
-	if err != nil {
-		log.Fatalf("client: %s", err)
+	case scratch.SubcommandCall:
+		err := mainCall()
+		if err != nil {
+			log.Fatalf("call: %s", err)
+		}
+		return
+	default:
+		log.Fatal("unknown subcommand")
 	}
 }
