@@ -2,124 +2,211 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/joshuarubin/go-sway"
 	"github.com/kndndrj/sway-scripts/internal/core"
 	"github.com/kndndrj/sway-scripts/scratch/scratch"
 )
 
+// eventHandler passes event messages to server.
 type eventHandler struct {
 	sway.EventHandler
 
-	log *log.Logger
-
-	cfg         *scratch.Config
-	outputCache *core.OutputCache
-	ninja       *core.NodeNinja
-	scratchpad  *scratch.Scratchpad
+	log    *log.Logger
+	server *scratch.Server
 }
 
 // Window handler gets called on window events.
 func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
-	// ignore close changes
-	if e.Change == sway.WindowClose {
-		return
-	}
-
-	// ignore all app ids other than the one provided
-	if e.Container.AppID == nil || *e.Container.AppID != eh.cfg.AppID {
-		return
-	}
-
-	// move to sway scratchpad the first time running
-	if e.Change == sway.WindowNew {
-		err := eh.scratchpad.MoveToScratchpad(ctx)
-		if err != nil {
-			eh.log.Printf("eh.scratchpad.MoveToScratchpad: %s", err)
-			return
-		}
-	}
-
-	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
+	err := eh.server.OnWindow(ctx)
 	if err != nil {
-		eh.log.Printf("eh.ninja.FindFocusedWorkspace: %s", err)
-		return
-	}
-
-	out, err := eh.outputCache.Get(ctx, workspace.Output)
-	if err != nil {
-		eh.log.Printf("eh.outputCache.Get: %s", err)
-		return
-	}
-
-	// calculate window dimensions based on prefferences and display size
-	shape := eh.scratchpad.CalculateWindowShape(out)
-
-	err = eh.scratchpad.Resize(ctx, shape.Width, shape.Height)
-	if err != nil {
-		eh.log.Printf("eh.scratchpad.Resize: %s", err)
-		return
-	}
-	err = eh.scratchpad.Move(ctx, shape.X, shape.Y)
-	if err != nil {
-		eh.log.Printf("eh.scratchpad.Move: %s", err)
-		return
+		eh.log.Printf("OnWindow: %s", err)
 	}
 }
 
 // Workspace handler gets called on workspace events.
 func (eh *eventHandler) Workspace(ctx context.Context, e sway.WorkspaceEvent) {
-	eh.outputCache.Invalidate()
+	err := eh.server.OnWorkspace(ctx)
+	if err != nil {
+		eh.log.Printf("OnWorkspace: %s", err)
+	}
 }
 
-func main() {
+// socketHandler passes messages from and to the unix socket between server and client.
+type socketHandler struct {
+	server *scratch.Server
+	log    *log.Logger
+}
+
+type scratchMessage struct {
+	ID         string
+	Definition *scratch.Definition
+}
+
+func (sh *socketHandler) decodeJson(reader io.Reader) (*scratchMessage, error) {
+	decoder := json.NewDecoder(reader)
+
+	ret := new(scratchMessage)
+	err := decoder.Decode(ret)
+	if err != nil {
+		return nil, fmt.Errorf("decoder.Decode: %w", err)
+	}
+
+	return ret, nil
+}
+
+func (sh *socketHandler) Close() error {
+	return os.Remove("/tmp/echo.sock")
+}
+
+func (sh *socketHandler) Serve(ctx context.Context) error {
+	l, err := net.Listen("unix", "/tmp/echo.sock")
+	if err != nil {
+		return fmt.Errorf("net.Listen: %w", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		fd, err := l.Accept()
+		if err != nil {
+			sh.log.Printf("l.Accept: %s", err)
+			continue
+		}
+
+		message, err := sh.decodeJson(fd)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		err = sh.server.ToggleScratchpad(ctx, message.ID, message.Definition)
+		if err != nil {
+			sh.log.Printf("sh.server.ToggleScratchpad: %s", err)
+			continue
+		}
+	}
+}
+
+func sendMessage(id string, def *scratch.Definition) error {
+	c, err := net.Dial("unix", "/tmp/echo.sock")
+	if err != nil {
+		panic(err)
+	}
+	defer c.Close()
+
+	message := &scratchMessage{
+		ID:         id,
+		Definition: def,
+	}
+
+	b, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("json.Marshal: %w", err)
+	}
+
+	_, err = c.Write(b)
+	if err != nil {
+		return fmt.Errorf("c.Write: %w", err)
+	}
+
+	return nil
+}
+
+// mainserver is a main function for server mode.
+func mainServer() error {
 	ctx := context.Background()
 
 	logger := log.New(os.Stdout, "scratch: ", log.LstdFlags)
 
-	client, err := sway.New(ctx)
-	if err != nil {
-		logger.Fatalf("sway.New: %s", err)
-	}
-
-	cfg, err := scratch.ParseConfig()
-	if err != nil {
-		logger.Fatalf("scratch.ParseConfig: %s", err)
-	}
-
-	s := scratch.NewSummoner(client, cfg)
-
-	// open/show scratchpad immediately
-	err = s.Summon(ctx)
-	if err != nil {
-		logger.Fatalf("s.Touch: %s", err)
-	}
-
-	// spawn a server for each scratchpad app_id only once.
-	// this server then listens for events and adjusts scratchpad sizes.
-	err = core.LockPidFile(fmt.Sprintf("sway_scratch_%s", cfg.AppID))
+	// check pidfile
+	err := core.LockPidFile("sway_scratch")
 	if err != nil {
 		if errors.Is(err, core.ErrProcessAlreadyRunning) {
-			return
+			return fmt.Errorf("server already running")
 		}
-		logger.Fatalf("LockPidFile: %s", err)
+		return fmt.Errorf("core.LockPidFile: %w", err)
 	}
+
+	client, err := sway.New(ctx)
+	if err != nil {
+		return fmt.Errorf("sway.New: %w", err)
+	}
+
+	server := scratch.NewServer(client, core.NewOutputCache(client), core.NewNodeNinja(client))
 
 	eh := &eventHandler{
-		log:         logger,
-		cfg:         cfg,
-		outputCache: core.NewOutputCache(client),
-		ninja:       core.NewNodeNinja(client),
-		scratchpad:  s,
+		log:    logger,
+		server: server,
 	}
 
-	// start the event loop
-	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace)
+	sh := &socketHandler{
+		server: server,
+		log:    logger,
+	}
+
+	defer sh.Close()
+
+	// start socket handler
+	go func() {
+		err := sh.Serve(ctx)
+		if err != nil {
+			logger.Fatalf("sh.Serve: %s", err)
+		}
+	}()
+
+	// start event handler
+	go func() {
+		err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace)
+		if err != nil {
+			logger.Fatalf("sway.Subscribe: %s", err)
+		}
+	}()
+
+	// Graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	<-c
+
+	return nil
+}
+
+func main() {
+	cfg, err := scratch.ParseConfig()
 	if err != nil {
-		logger.Fatalf("sway.Subscribe: %s", err)
+		log.Fatal(err)
+	}
+
+	// server
+	if cfg.AppID == "asdf" {
+		err := mainServer()
+		if err != nil {
+			log.Fatalf("server: %s", err)
+		}
+		return
+	}
+
+	// clienclient
+	err = sendMessage("srat", &scratch.Definition{
+		Position:     scratch.PositionLeft,
+		Cmd:          "kitty",
+		WindowWidth:  300,
+		WindowHeight: 100,
+	})
+	if err != nil {
+		log.Fatalf("client: %s", err)
 	}
 }

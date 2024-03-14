@@ -2,6 +2,7 @@ package scratch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -10,42 +11,43 @@ import (
 	"github.com/kndndrj/sway-scripts/internal/core"
 )
 
+type Position int
+
+const (
+	PositionCenter Position = iota
+	PositionLeft
+	PositionRight
+)
+
+// Definition defines the scratchpad.
+type Definition struct {
+	Position     Position
+	Cmd          string
+	WindowWidth  int
+	WindowHeight int
+}
+
 // Scratchpad represents a single scratchpad.
 type Scratchpad struct {
 	client sway.Client
-	cfg    *Config
+	def    *Definition
+
+	Pid int
 }
 
-func NewSummoner(c sway.Client, cfg *Config) *Scratchpad {
+func NewScratchpad(c sway.Client, def *Definition) *Scratchpad {
 	return &Scratchpad{
 		client: c,
-		cfg:    cfg,
+		def:    def,
 	}
 }
 
-// MoveToScratchpad configures the scratchpad as scratchpad.
-func (s *Scratchpad) MoveToScratchpad(ctx context.Context) error {
-	cmd := fmt.Sprintf("[app_id=%q] move scratchpad; [app_id=%q] scratchpad show", s.cfg.AppID, s.cfg.AppID)
-
-	_, err := s.client.RunCommand(ctx, cmd)
-	if err != nil {
-		return fmt.Errorf("eh.client.RunCommand: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Scratchpad) spawnWindow(ctx context.Context) error {
-	command, err := s.cfg.GenTermCmd(s.cfg.AppID)
-	if err != nil {
-		return fmt.Errorf("h.cfg.GenTermCmd: %w", err)
-	}
-
+func (s *Scratchpad) spawnWindow(ctx context.Context) (pid int, err error) {
 	// launch the program
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd := exec.CommandContext(ctx, "sh", "-c", s.def.Cmd)
 	err = cmd.Start()
 	if err != nil {
-		return fmt.Errorf("cmd.Start: %w", err)
+		return 0, fmt.Errorf("cmd.Start: %w", err)
 	}
 
 	// set the scratchpad rule for window's pid
@@ -55,31 +57,42 @@ func (s *Scratchpad) spawnWindow(ctx context.Context) error {
 	)
 	_, err = s.client.RunCommand(ctx, c)
 	if err != nil {
-		return fmt.Errorf("eh.client.RunCommand: %w", err)
+		return 0, fmt.Errorf("s.client.RunCommand: %w", err)
 	}
 
-	return nil
+	return cmd.Process.Pid, nil
 }
 
+var errNoMatchingNode = errors.New("no matching node")
+
 func (s *Scratchpad) showScratchpad(ctx context.Context) error {
-	cmd := fmt.Sprintf("[app_id=%q] scratchpad show", s.cfg.AppID)
+	if s.Pid == 0 {
+		return errNoMatchingNode
+	}
+
+	cmd := fmt.Sprintf("[pid=%d] scratchpad show", s.Pid)
 
 	_, err := s.client.RunCommand(ctx, cmd)
 	if err != nil {
-		return fmt.Errorf("eh.client.RunCommand: %w", err)
+		if strings.Contains(err.Error(), "No matching node") {
+			return errNoMatchingNode
+		}
+		return fmt.Errorf("s.client.RunCommand: %w", err)
 	}
 
 	return nil
 }
 
-// Summon tries to toggle the scratchpad or opens a new one.
-func (s *Scratchpad) Summon(ctx context.Context) error {
+// Toggle tries to toggle the scratchpad or opens a new one.
+func (s *Scratchpad) Toggle(ctx context.Context) error {
 	err := s.showScratchpad(ctx)
-	if err != nil && strings.Contains(err.Error(), "No matching node") {
-		err := s.spawnWindow(ctx)
+	if errors.Is(err, errNoMatchingNode) {
+		pid, err := s.spawnWindow(ctx)
 		if err != nil {
 			return err
 		}
+		// update pid
+		s.Pid = pid
 	} else if err != nil {
 		return err
 	}
@@ -96,8 +109,8 @@ type Shape struct {
 }
 
 func (eh *Scratchpad) CalculateWindowShape(out *core.Output) *Shape {
-	width := (eh.cfg.WindowWidth * out.Width) / out.PhysicalWidth
-	height := (eh.cfg.WindowHeight * out.Height) / out.PhysicalHeight
+	width := (eh.def.WindowWidth * out.Width) / out.PhysicalWidth
+	height := (eh.def.WindowHeight * out.Height) / out.PhysicalHeight
 
 	if height > out.Height {
 		height = out.Height
@@ -105,7 +118,7 @@ func (eh *Scratchpad) CalculateWindowShape(out *core.Output) *Shape {
 	y := (out.Height - height) / 2
 	x := 0
 
-	switch eh.cfg.Position {
+	switch eh.def.Position {
 	case PositionCenter:
 		if width > out.Width {
 			width = out.Width
@@ -131,25 +144,16 @@ func (eh *Scratchpad) CalculateWindowShape(out *core.Output) *Shape {
 	}
 }
 
-// Resize applies dimensions to specified node.
-func (s *Scratchpad) Resize(ctx context.Context, width, height int) error {
-	cmd := fmt.Sprintf("[app_id=%q] resize set %d %d", s.cfg.AppID, width, height)
+// Reposition applies shape to scratchpad.
+func (s *Scratchpad) Reposition(ctx context.Context, shape *Shape) error {
+	cmd := fmt.Sprintf(
+		"[pid=%d] resize set %d %d; [pid=%d] move absolute position %d %d",
+		s.Pid, shape.Width, shape.Height, s.Pid, shape.X, shape.Y,
+	)
 
 	_, err := s.client.RunCommand(ctx, cmd)
 	if err != nil {
-		return fmt.Errorf("eh.client.RunCommand: %w", err)
-	}
-
-	return nil
-}
-
-// Move moves the specified node to the position
-func (s *Scratchpad) Move(ctx context.Context, x, y int) error {
-	cmd := fmt.Sprintf("[app_id=%q] move absolute position %d %d", s.cfg.AppID, x, y)
-
-	_, err := s.client.RunCommand(ctx, cmd)
-	if err != nil {
-		return fmt.Errorf("eh.client.RunCommand: %w", err)
+		return fmt.Errorf("s.client.RunCommand: %w", err)
 	}
 
 	return nil

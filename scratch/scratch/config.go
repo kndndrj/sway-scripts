@@ -10,14 +10,6 @@ import (
 	"text/template"
 )
 
-type Position int
-
-const (
-	PositionCenter Position = iota
-	PositionLeft
-	PositionRight
-)
-
 type Config struct {
 	AppID        string
 	Position     Position
