@@ -3,6 +3,7 @@ package scratch
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/joshuarubin/go-sway"
 
@@ -15,6 +16,8 @@ type Server struct {
 	ninja       *core.NodeNinja
 
 	scratchpads map[string]*Scratchpad
+
+	mu sync.Mutex
 }
 
 func NewServer(c sway.Client, oc *core.OutputCache, ninja *core.NodeNinja) *Server {
@@ -27,6 +30,9 @@ func NewServer(c sway.Client, oc *core.OutputCache, ninja *core.NodeNinja) *Serv
 }
 
 func (s *Server) findScratchpadWithPid(pid *uint32) (*Scratchpad, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if pid == nil || *pid == 0 {
 		return nil, false
 	}
@@ -83,6 +89,9 @@ func (s *Server) OnWorkspace(ctx context.Context) error {
 
 // ToggleScratchpad toggles a specified scratchpad.
 func (s *Server) ToggleScratchpad(ctx context.Context, id string, def *Definition) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// toggle existing scratchpad
 	if sc, ok := s.scratchpads[id]; ok {
 		err := sc.Toggle(ctx)

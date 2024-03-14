@@ -2,18 +2,17 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/joshuarubin/go-sway"
+
 	"github.com/kndndrj/sway-scripts/internal/core"
+	"github.com/kndndrj/sway-scripts/internal/socket"
 	"github.com/kndndrj/sway-scripts/scratch/scratch"
 )
 
@@ -23,6 +22,13 @@ type eventHandler struct {
 
 	log    *log.Logger
 	server *scratch.Server
+}
+
+func newEventHandler(logger *log.Logger, server *scratch.Server) *eventHandler {
+	return &eventHandler{
+		log:    logger,
+		server: server,
+	}
 }
 
 // Window handler gets called on window events.
@@ -41,92 +47,15 @@ func (eh *eventHandler) Workspace(ctx context.Context, e sway.WorkspaceEvent) {
 	}
 }
 
-// socketHandler passes messages from and to the unix socket between server and client.
-type socketHandler struct {
-	server *scratch.Server
-	log    *log.Logger
-}
-
-type scratchMessage struct {
+// socketMessage is passed throught the unix socket.
+type socketMessage struct {
 	ID         string
 	Definition *scratch.Definition
 }
 
-func (sh *socketHandler) decodeJson(reader io.Reader) (*scratchMessage, error) {
-	decoder := json.NewDecoder(reader)
+const socketName = "sway_scratch"
 
-	ret := new(scratchMessage)
-	err := decoder.Decode(ret)
-	if err != nil {
-		return nil, fmt.Errorf("decoder.Decode: %w", err)
-	}
-
-	return ret, nil
-}
-
-func (sh *socketHandler) Close() error {
-	return os.Remove("/tmp/echo.sock")
-}
-
-func (sh *socketHandler) Serve(ctx context.Context) error {
-	l, err := net.Listen("unix", "/tmp/echo.sock")
-	if err != nil {
-		return fmt.Errorf("net.Listen: %w", err)
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		fd, err := l.Accept()
-		if err != nil {
-			sh.log.Printf("l.Accept: %s", err)
-			continue
-		}
-
-		message, err := sh.decodeJson(fd)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-
-		err = sh.server.ToggleScratchpad(ctx, message.ID, message.Definition)
-		if err != nil {
-			sh.log.Printf("sh.server.ToggleScratchpad: %s", err)
-			continue
-		}
-	}
-}
-
-func sendMessage(id string, def *scratch.Definition) error {
-	c, err := net.Dial("unix", "/tmp/echo.sock")
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
-
-	message := &scratchMessage{
-		ID:         id,
-		Definition: def,
-	}
-
-	b, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("json.Marshal: %w", err)
-	}
-
-	_, err = c.Write(b)
-	if err != nil {
-		return fmt.Errorf("c.Write: %w", err)
-	}
-
-	return nil
-}
-
-// mainserver is a main function for server mode.
+// mainServer is a main function for server mode.
 func mainServer() error {
 	ctx := context.Background()
 
@@ -146,31 +75,32 @@ func mainServer() error {
 		return fmt.Errorf("sway.New: %w", err)
 	}
 
+	// server that manages scratchpads
 	server := scratch.NewServer(client, core.NewOutputCache(client), core.NewNodeNinja(client))
 
-	eh := &eventHandler{
-		log:    logger,
-		server: server,
-	}
+	// event handler for sway events
+	events := newEventHandler(logger, server)
 
-	sh := &socketHandler{
-		server: server,
-		log:    logger,
+	// socket server for requests over the socket
+	sock, err := socket.NewServer(logger, socketName, func(ctx context.Context, msg *socketMessage) error {
+		return server.ToggleScratchpad(ctx, msg.ID, msg.Definition)
+	})
+	if err != nil {
+		return fmt.Errorf("socket.NewServer: %w", err)
 	}
-
-	defer sh.Close()
+	defer sock.Close()
 
 	// start socket handler
 	go func() {
-		err := sh.Serve(ctx)
+		err := sock.Serve(ctx)
 		if err != nil {
-			logger.Fatalf("sh.Serve: %s", err)
+			logger.Fatalf("sock.Serve: %s", err)
 		}
 	}()
 
 	// start event handler
 	go func() {
-		err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace)
+		err = sway.Subscribe(ctx, events, sway.EventTypeWindow, sway.EventTypeWorkspace)
 		if err != nil {
 			logger.Fatalf("sway.Subscribe: %s", err)
 		}
@@ -200,12 +130,16 @@ func main() {
 	}
 
 	// clienclient
-	err = sendMessage("srat", &scratch.Definition{
-		Position:     scratch.PositionLeft,
-		Cmd:          "kitty",
-		WindowWidth:  300,
-		WindowHeight: 100,
-	})
+	err = socket.Invoke(socketName,
+		&socketMessage{
+			ID: "someid",
+			Definition: &scratch.Definition{
+				Position:     scratch.PositionLeft,
+				Cmd:          "kitty",
+				WindowWidth:  300,
+				WindowHeight: 100,
+			},
+		})
 	if err != nil {
 		log.Fatalf("client: %s", err)
 	}
