@@ -19,6 +19,7 @@ type Server struct {
 
 	scratchpads map[string]*Scratchpad
 
+	// mutex for sway client - it freezes sometimes without this for some reason.
 	mu sync.Mutex
 }
 
@@ -33,9 +34,6 @@ func NewServer(logger *log.Logger, c sway.Client, oc *core.OutputCache, ninja *c
 }
 
 func (s *Server) findScratchpadWithPid(pid *uint32) (*Scratchpad, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if pid == nil || *pid == 0 {
 		return nil, false
 	}
@@ -53,6 +51,9 @@ func (s *Server) findScratchpadWithPid(pid *uint32) (*Scratchpad, bool) {
 
 // OnWindow handler should get called on window events.
 func (s *Server) OnWindow(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	focused, err := s.ninja.FindFocusedNode(ctx)
 	if err != nil {
 		return fmt.Errorf("s.ninja.FindFocusedNode: %w", err)
