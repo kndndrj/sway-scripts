@@ -48,6 +48,16 @@ func (s *Scratchpad) spawnWindow(ctx context.Context) error {
 		return fmt.Errorf("cmd.Start: %w", err)
 	}
 
+	// set the scratchpad rule for window's pid
+	c := fmt.Sprintf(
+		`for_window [pid=%d] move scratchpad; for_window [pid=%d] scratchpad show`,
+		cmd.Process.Pid, cmd.Process.Pid,
+	)
+	_, err = s.client.RunCommand(ctx, c)
+	if err != nil {
+		return fmt.Errorf("eh.client.RunCommand: %w", err)
+	}
+
 	return nil
 }
 

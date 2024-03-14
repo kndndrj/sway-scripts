@@ -24,7 +24,7 @@ func LockPidFile(fileName string) error {
 		dir = "/tmp"
 	}
 
-	file := dir + "/" + fileName
+	file := dir + "/" + fileName + ".pid"
 
 	// check if file exists
 	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
@@ -63,7 +63,7 @@ func LockPidFile(fileName string) error {
 
 func writePidFile(file string) error {
 	// If the file doesn't exist, create it, otherwise overwrite it
-	f, err := os.OpenFile(file, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	f, err := os.OpenFile(file, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
 	}

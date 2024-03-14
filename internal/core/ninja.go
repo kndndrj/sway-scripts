@@ -60,6 +60,16 @@ func (nn *NodeNinja) FindFocusedWorkspace(ctx context.Context) (*sway.Workspace,
 	return nil, errors.New("no focused workspace")
 }
 
+// FindFocusedNode finds the currently focused node.
+func (nn *NodeNinja) FindFocusedNode(ctx context.Context) (*sway.Node, error) {
+	node, err := nn.client.GetTree(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("eh.client.GetWorkspaces: %w", err)
+	}
+
+	return node.FocusedNode(), nil
+}
+
 func filterConNodes(in []*sway.Node) []*sway.Node {
 	var out []*sway.Node
 	for _, n := range in {

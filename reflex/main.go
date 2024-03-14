@@ -90,15 +90,16 @@ func nodeExistsInSet(set []*sway.Node, n *sway.Node) bool {
 
 // Window handler gets called on window events.
 func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
-	if e.Container.Type != sway.NodeCon {
+	// IMPORTANT: need to search on instead of using the window from event.
+	// Events might be queued and out of sync.
+	focused, err := eh.ninja.FindFocusedNode(ctx)
+	if err != nil {
+		eh.log.Printf("eh.ninja.FindFocusedNode: %s", err)
 		return
 	}
 
-	// check if app_id is disabled
-	if e.Container.AppID != nil {
-		if _, ok := eh.cfg.DisabledAppIDs[*e.Container.AppID]; ok {
-			return
-		}
+	if focused.Type != sway.NodeCon {
+		return
 	}
 
 	workspace, err := eh.ninja.FindFocusedWorkspace(ctx)
@@ -126,15 +127,15 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 
 	// run autogaps for toplevel containers and autotiling for
 	// other nested windows.
-	if nodeExistsInSet(topLevelContainers, &e.Container) || e.Change == sway.WindowClose {
+	if nodeExistsInSet(topLevelContainers, focused) || e.Change == sway.WindowClose {
 		err := eh.autogap(ctx, workspace)
 		if err != nil {
 			eh.log.Printf("eh.autogap: %s", err)
 			return
 		}
 	} else {
-		dir := eh.ninja.NodeDetermineSplitDirection(&e.Container)
-		err = eh.ninja.NodeApplySplitDirection(ctx, &e.Container, dir)
+		dir := eh.ninja.NodeDetermineSplitDirection(focused)
+		err = eh.ninja.NodeApplySplitDirection(ctx, focused, dir)
 		if err != nil {
 			eh.log.Printf("eh.ninja.NodeApplySplitDirection: %s", err)
 			return
