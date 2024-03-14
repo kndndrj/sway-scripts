@@ -114,8 +114,8 @@ func (eh *Scratchpad) CalculateWindowShape(out *core.Output) *Shape {
 	}
 
 	return &Shape{
-		X:      x,
-		Y:      y,
+		X:      x + out.X,
+		Y:      y + out.Y,
 		Width:  width,
 		Height: height,
 	}

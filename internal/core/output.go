@@ -16,6 +16,8 @@ type Output struct {
 	Height         int
 	PhysicalWidth  int
 	PhysicalHeight int
+	X              int
+	Y              int
 }
 
 var (
@@ -201,6 +203,8 @@ func (c *OutputCache) fetchOutputs(ctx context.Context) (map[string]*Output, err
 			Height:         int(o.Rect.Height),
 			PhysicalWidth:  p.PhysicalWidth,
 			PhysicalHeight: p.PhysicalHeight,
+			X:              int(o.Rect.X),
+			Y:              int(o.Rect.Y),
 		}
 	}
 

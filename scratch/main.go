@@ -39,7 +39,7 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 	if e.Change == sway.WindowNew {
 		err := eh.scratchpad.MoveToScratchpad(ctx)
 		if err != nil {
-			eh.log.Printf("eh.summoner.MoveToScratchpad: %s", err)
+			eh.log.Printf("eh.scratchpad.MoveToScratchpad: %s", err)
 			return
 		}
 	}
@@ -61,12 +61,12 @@ func (eh *eventHandler) Window(ctx context.Context, e sway.WindowEvent) {
 
 	err = eh.scratchpad.Resize(ctx, shape.Width, shape.Height)
 	if err != nil {
-		eh.log.Printf("eh.summoner.Resize: %s", err)
+		eh.log.Printf("eh.scratchpad.Resize: %s", err)
 		return
 	}
 	err = eh.scratchpad.Move(ctx, shape.X, shape.Y)
 	if err != nil {
-		eh.log.Printf("eh.summoner.Move: %s", err)
+		eh.log.Printf("eh.scratchpad.Move: %s", err)
 		return
 	}
 }
