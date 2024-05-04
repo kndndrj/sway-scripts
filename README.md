@@ -4,11 +4,16 @@ This repository contains some of my scripts that I use with my sway config.
 
 ## `sway-reflex`
 
-This one is basically `autotiling` on steroids.
-You provide a physical window size and the script organizes windows by itself.
-Useful for large monitors, where a single window over the whole screen is just too big.
+```sh
+go install github.com/kndndrj/sway-scripts/sway-reflex@latest
+```
+
+This one is basically `autotiling` on steroids. You provide a physical window size and the script
+organizes windows by itself. Useful for large monitors, where a single window over the whole screen
+is just too big.
 
 example:
+
 ```
 # [.config/sway/config]
 
@@ -17,10 +22,15 @@ exec_always sway-reflex -window_size 500x300 -default_gaps 20
 
 ## `sway-scratch`
 
-This starts a server to manage scratchpads - this server can then be controlled via
-subsequent commands.
+```sh
+go install github.com/kndndrj/sway-scripts/sway-scratch@latest
+```
+
+This starts a server to manage scratchpads - this server can then be controlled via subsequent
+commands.
 
 example:
+
 ```
 # [.config/sway/config]
 
