@@ -179,11 +179,12 @@ func (eh *eventHandler) Binding(ctx context.Context, e sway.BindingEvent) {
 		}
 	}
 
-	if strings.Contains(cmd, "disable_current") {
+	switch {
+	case strings.Contains(cmd, "disable_current"):
 		disable()
-	} else if strings.Contains(cmd, "enable_current") {
+	case strings.Contains(cmd, "enable_current"):
 		enable()
-	} else if strings.Contains(cmd, "toggle_current") {
+	case strings.Contains(cmd, "toggle_current"):
 		if _, ok := eh.cfg.DisabledWorkspaces[int(workspace.Num)]; ok {
 			enable()
 		} else {
