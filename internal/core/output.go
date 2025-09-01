@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/joshuarubin/go-sway"
-	"github.com/neurlang/wayland/wl"
-	"github.com/neurlang/wayland/wlclient"
 )
 
 // Output represents physical and pixel dimensions of a monitor.
@@ -20,78 +18,11 @@ type Output struct {
 	Y              int
 }
 
-var (
-	_ wl.OutputGeometryHandler = (*outputListener)(nil)
-	_ wl.OutputNameHandler     = (*outputListener)(nil)
-)
-
 type physicalDimensions struct {
 	Name           string
 	PhysicalWidth  int
 	PhysicalHeight int
 }
-
-type outputListener struct {
-	index      int                   // current index in list
-	dimensions []*physicalDimensions // list of outputs
-	doneFlangs int                   // when this is equal to number of event handlers (e.g. 2), index is incremented
-}
-
-// prepareNextOutput prepares next output and returns a reference to it.
-func (ol *outputListener) prepareNextOutput() *physicalDimensions {
-	ol.doneFlangs += 1
-
-	if ol.doneFlangs > 2 {
-		ol.index += 1
-		ol.doneFlangs = 0
-	}
-
-	if len(ol.dimensions) < ol.index+1 {
-		ol.dimensions = append(ol.dimensions, &physicalDimensions{})
-	}
-
-	return ol.dimensions[len(ol.dimensions)-1]
-}
-
-func (ol *outputListener) collect() map[string]*physicalDimensions {
-	ret := make(map[string]*physicalDimensions, len(ol.dimensions))
-	for _, dim := range ol.dimensions {
-		ret[dim.Name] = dim
-	}
-
-	return ret
-}
-
-func (ol *outputListener) HandleOutputGeometry(e wl.OutputGeometryEvent) {
-	dim := ol.prepareNextOutput()
-	dim.PhysicalWidth = int(e.PhysicalWidth)
-	dim.PhysicalHeight = int(e.PhysicalHeight)
-}
-
-func (ol *outputListener) HandleOutputName(e wl.OutputNameEvent) {
-	dim := ol.prepareNextOutput()
-	dim.Name = e.Name
-}
-
-var _ wlclient.RegistryListener = (*registryListener)(nil)
-
-type registryListener struct {
-	registry       *wl.Registry
-	outputListener *outputListener
-}
-
-func (rl *registryListener) HandleRegistryGlobal(e wl.RegistryGlobalEvent) {
-	if e.Interface != "wl_output" {
-		return
-	}
-
-	out := wlclient.RegistryBindOutputInterface(rl.registry, e.Name, e.Version)
-
-	out.AddGeometryHandler(rl.outputListener)
-	out.AddNameHandler(rl.outputListener)
-}
-
-func (rl *registryListener) HandleRegistryGlobalRemove(wl.RegistryGlobalRemoveEvent) {}
 
 // OutputCache is a cache of wayland output info.
 type OutputCache struct {
@@ -125,79 +56,44 @@ func (c *OutputCache) Get(ctx context.Context, name string) (*Output, error) {
 	}
 
 	// if cache is invalid, update it
-	outs, err := c.fetchOutputs(ctx)
+	lookup, err := c.fetch(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed updating cache: %w", err)
+		return nil, err
 	}
 
-	c.lookup = outs
+	c.lookup = lookup
 	c.isValid = true
 
 	return c.look(name)
 }
 
-func (c *OutputCache) Invalidate() {
-	c.isValid = false
-}
-
-// fetchOutputs returns an up to date info about outputs.
-func (c *OutputCache) fetchOutputs(ctx context.Context) (map[string]*Output, error) {
-	//
-	// get physical sizes from wayland directly
-	//
-	display, err := wlclient.DisplayConnect(nil)
+func (c *OutputCache) fetch(ctx context.Context) (map[string]*Output, error) {
+	// fetch physical dimensions from wayland client
+	physical, err := fetcher(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("wlclient.DisplayConnect: %w", err)
-	}
-	defer wlclient.DisplayDisconnect(display)
-
-	registry, err := wlclient.DisplayGetRegistry(display)
-	if err != nil {
-		return nil, fmt.Errorf("wlclient.DisplayGetRegistry: %w", err)
-	}
-	defer wlclient.RegistryDestroy(registry)
-
-	listener := &registryListener{
-		registry:       registry,
-		outputListener: &outputListener{},
+		return nil, fmt.Errorf("failed fetching outputs: %w", err)
 	}
 
-	wlclient.RegistryAddListener(registry, listener)
-
-	err = wlclient.DisplayDispatch(display)
-	if err != nil {
-		return nil, fmt.Errorf("wlclient.DisplayDispatch: %w", err)
-	}
-	// first roundtrip triggers registry listener
-	err = wlclient.DisplayRoundtrip(display)
-	if err != nil {
-		return nil, fmt.Errorf("wlclient.DisplayRoundtrip: %w", err)
-	}
-	// second roundtrip triggers output listener
-	err = wlclient.DisplayRoundtrip(display)
-	if err != nil {
-		return nil, fmt.Errorf("wlclient.DisplayRoundtrip: %w", err)
-	}
-
-	physical := listener.outputListener.collect()
-
-	//
 	// get resolutions from sway
-	//
 	outs, err := c.swayCl.GetOutputs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("c.swayCl.GetOutputs: %w", err)
 	}
 
+	phys := make(map[string]*physicalDimensions, len(outs))
+	for _, p := range physical {
+		phys[p.Name] = p
+	}
+
 	// merge
-	ret := make(map[string]*Output)
+	lookup := make(map[string]*Output)
 	for _, o := range outs {
-		p, ok := physical[o.Name]
+		p, ok := phys[o.Name]
 		if !ok {
 			continue
 		}
 
-		ret[o.Name] = &Output{
+		lookup[o.Name] = &Output{
 			Name:           o.Name,
 			Width:          int(o.Rect.Width),
 			Height:         int(o.Rect.Height),
@@ -208,5 +104,13 @@ func (c *OutputCache) fetchOutputs(ctx context.Context) (map[string]*Output, err
 		}
 	}
 
-	return ret, nil
+	return lookup, nil
+}
+
+func (c *OutputCache) Invalidate() {
+	c.isValid = false
+}
+
+var fetcher = func(ctx context.Context) ([]*physicalDimensions, error) {
+	panic("not implemented!")
 }
