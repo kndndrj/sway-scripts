@@ -39,32 +39,28 @@ func NewOutputCache(cl sway.Client) *OutputCache {
 	}
 }
 
-// look returns value from lookup (translates ok to err)
-func (c *OutputCache) look(name string) (*Output, error) {
-	out, ok := c.lookup[name]
-	if !ok {
-		return nil, fmt.Errorf("output %q not found", name)
-	}
-	return out, nil
-}
-
 // Get returns the specified wayland output
 func (c *OutputCache) Get(ctx context.Context, name string) (*Output, error) {
 	// if cache is valid, return the value
 	if c.isValid {
-		return c.look(name)
+		if out, ok := c.lookup[name]; ok {
+			return out, nil
+		}
 	}
 
-	// if cache is invalid, update it
+	// if cache is invalid, or the value was not found, update the cache.
 	lookup, err := c.fetch(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch: %w", err)
 	}
 
 	c.lookup = lookup
 	c.isValid = true
 
-	return c.look(name)
+	if out, ok := c.lookup[name]; ok {
+		return out, nil
+	}
+	return nil, fmt.Errorf("output %q not found", name)
 }
 
 func (c *OutputCache) fetch(ctx context.Context) (map[string]*Output, error) {
