@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/joshuarubin/go-sway"
 )
@@ -54,7 +55,8 @@ func (c *OutputCache) Get(ctx context.Context, name string) (*Output, error) {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
 
-	c.lookup = lookup
+	// update the map with new keys
+	maps.Copy(c.lookup, lookup)
 	c.isValid = true
 
 	if out, ok := c.lookup[name]; ok {

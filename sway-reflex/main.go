@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joshuarubin/go-sway"
 
@@ -226,8 +227,11 @@ func main() {
 	}
 
 	// start the event loop
-	err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace, sway.EventTypeBinding)
-	if err != nil {
-		logger.Fatalf("sway.Subscribe: %s", err)
+	for {
+		err = sway.Subscribe(ctx, eh, sway.EventTypeWindow, sway.EventTypeWorkspace, sway.EventTypeBinding)
+		if err != nil {
+			logger.Printf("sway.Subscribe error: %s", err)
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
