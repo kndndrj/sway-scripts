@@ -1,5 +1,3 @@
-//go:build !cgo
-
 package core
 
 import (
@@ -10,13 +8,8 @@ import (
 	"github.com/neurlang/wayland/wlclient"
 )
 
-func init() {
-	// assigns based on build flags
-	fetcher = fetcherNative
-}
-
 // fetchOutputs returns an up to date info about outputs.
-func fetcherNative(_ context.Context) ([]*physicalDimensions, error) {
+func fetchOutputs(_ context.Context) ([]*physicalDimensions, error) {
 	// get physical sizes from wayland directly
 	display, err := wlclient.DisplayConnect(nil)
 	if err != nil {

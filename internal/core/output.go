@@ -67,7 +67,7 @@ func (c *OutputCache) Get(ctx context.Context, name string) (*Output, error) {
 
 func (c *OutputCache) fetch(ctx context.Context) (map[string]*Output, error) {
 	// fetch physical dimensions from wayland client
-	physical, err := fetcher(ctx)
+	physical, err := fetchOutputs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching outputs: %w", err)
 	}
@@ -107,8 +107,4 @@ func (c *OutputCache) fetch(ctx context.Context) (map[string]*Output, error) {
 
 func (c *OutputCache) Invalidate() {
 	c.isValid = false
-}
-
-var fetcher = func(ctx context.Context) ([]*physicalDimensions, error) {
-	panic("not implemented!")
 }

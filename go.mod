@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/joshuarubin/go-sway v1.2.0
-	github.com/neurlang/wayland v0.2.1
+	github.com/neurlang/wayland v0.2.2
 	github.com/stretchr/testify v1.9.0
 )
 

@@ -5,8 +5,8 @@ github.com/joshuarubin/go-sway v1.2.0 h1:t3eqW504//uj9PDwFf0+IVfkD+WoOGaDX5gYIe0
 github.com/joshuarubin/go-sway v1.2.0/go.mod h1:qcDd6f25vJ0++wICwA1BainIcRC67p2Mb4lsrZ0k3/k=
 github.com/joshuarubin/lifecycle v1.0.0 h1:N/lPEC8f+dBZ1Tn99vShqp36LwB+LI7XNAiNadZeLUQ=
 github.com/joshuarubin/lifecycle v1.0.0/go.mod h1:sRy++ATvR9Ee21tkRdFkQeywAWvDsue66V70K0Dnl54=
-github.com/neurlang/wayland v0.2.1 h1:/krK1Flt6VMCj/+KgEYhbm27fkYYEDGkiF1IzNlO43E=
-github.com/neurlang/wayland v0.2.1/go.mod h1:YKS+7tdgk07sNzFBF1Xd50Fwf+7ecrFBYaW+6+l5O08=
+github.com/neurlang/wayland v0.2.2 h1:VqyIAfJga3hRF+AYYJ3/1BhgL9k58yUBAaLC5eP5LxY=
+github.com/neurlang/wayland v0.2.2/go.mod h1:YKS+7tdgk07sNzFBF1Xd50Fwf+7ecrFBYaW+6+l5O08=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
